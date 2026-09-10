@@ -81,36 +81,36 @@ NEXUS WORKSTATION
 
 ## Feature Audit & Implementation Matrix
 
-| # | Feature Area | Status | Technical Implementation Details |
+| # | Feature Area | Technical Implementation Details |
 |---|---|:---:|---|
-| **1** | **Chart Indicators & Sub-Panes** | **Complete** | Lightweight Charts v5.2.1 canvas engine. SMA (20, 50, 200), EMA (9, 21, 50), VWAP, Bollinger Bands, Ichimoku Cloud overlays; toggleable sub-pane oscillators (RSI 14, MACD with histogram, Stochastic %K/%D, ADX 14). |
-| **2** | **Candlestick Pattern Intelligence** | **Complete** | Rule-based recognition engine for Doji, Hammer, Inverted Hammer, Shooting Star, Bullish/Bearish Engulfing, Morning/Evening Star, Harami, Marubozu, Three White Soldiers, Three Black Crows. Clickable markers with structural metrics & non-predictive observation notes. |
-| **3** | **Data Freshness & Indicators** | **Complete** | Real-time badge indicators (`Delayed 15m (NSE)` or `Market Closed - As of DD Mon HH:MM`) displayed on quotes, research views, and chart headers. |
-| **4** | **No Fabricated Numbers** | **Complete** | All synthetic random-walk / Brownian motion generators removed. Clear fallback to `"Data unavailable"` with provider telemetry. |
-| **5** | **Comprehensive Stock Metrics** | **Complete** | Balance sheet fundamentals: P/E, P/B, EV/EBITDA, ROE, ROCE, Debt-to-Equity, FCF, Promoter Pledge %, FII/DII holding distributions, and quarterly institutional changes. |
-| **6** | **Stock Comparison Engine** | **Complete** | Side-by-side multi-stock comparison matrix with valuation rankings and normalized % return charts comparing up to 5 symbols over 1M/6M/1Y/5Y. |
-| **7** | **Universal Entity Search** | **Complete** | Dynamic symbol search across 5,000+ NSE/BSE listed equities, indices, and asset classes with real-time ticker discovery. |
-| **8** | **Watchlists Engine** | **Complete** | Multi-list management system with persistent SQLite/Postgres storage, real-time performance summary, batch removal/addition, and 1-click research navigation. |
-| **9** | **Corporate Actions & Bulk Deals** | **Complete** | Historical dividend yields, splits, bonus shares, rights issues, and institutional bulk/block deal transaction filings. |
-| **10** | **Sector Rotation Analysis** | **Complete** | Sectoral performance heatmap, P/E multiples, breadth ratios, and historical capital flow analysis. |
-| **11** | **Index Survivorship Context** | **Complete** | NIFTY 50 and NIFTY Bank constituent tracking with historical additions and deletions. |
-| **12** | **Mutual Funds & Overlap Engine** | **Complete** | Explorer across Large Cap, Flexi Cap, Mid Cap, Hybrid, and Debt schemes. Mathematical portfolio overlap calculator ($\sum \min(w_{i,A}, w_{i,B})$) detecting duplicate holdings. |
-| **13** | **ETF Look-Through** | **Complete** | ETF catalog (NIFTYBEES, GOLDBEES, JUNIORBEES, BANKBEES, LIQUIDBEES) with underlying constituent look-through for exposure unmasking. |
-| **14** | **Bonds & Bond Ladder Simulator** | **Complete** | Sovereign G-Secs (7.18% GS 2033, 7.10% GS 2034) and AAA PSU bonds. Macauley/Modified duration, YTM, and interactive Bond Ladder cash-flow schedule simulator. |
-| **15** | **Commodities & Currencies** | **Complete** | Gold (₹/10g), Silver (₹/kg), Brent Crude ($/bbl), and USD/INR exchange rates with historical charts and equity correlation notes. |
-| **16** | **Portfolio Analytics & Risk Lab** | **Complete** | CAGR, XIRR, Sharpe, Sortino, Max Drawdown, Benchmark Beta, Sector Concentration, and Stress-Testing simulations (-10%/-20% market shocks, crude shock, rate hike). |
-| **17** | **Portfolio Rebalancing Simulator**| **Complete** | Current vs Target asset allocation simulator generating hypothetical rebalancing orders without live execution risk. |
-| **18** | **Grounded RAG Document AI** | **Complete** | Vector cosine-similarity financial document search over corporate annual reports and quarterly filings with strict prompt-injection defenses. |
-| **19** | **AI Research Reports** | **Complete** | Structured research generation strictly separating Facts, Calculated Metrics, Historical Observations, and Uncertainties. |
-| **20** | **Research Workspace & Journal** | **Complete** | Trade thesis logging, emotional rating, execution quality tracking, and thesis dossier recording. |
-| **21** | **Quant Research Lab & Backtesting**| **Complete** | Dual SMA crossover backtester with 70% In-Sample / 30% Out-of-Sample segregation, slippage assumptions (10 bps), equity curves, CAGR, drawdown, and factor intelligence profiles. |
-| **22** | **Macroeconomic Dashboard** | **Complete** | CPI Inflation, Real GDP Growth, RBI Repo Rate, 10Y Benchmark G-Sec Yield, and HSBC India Manufacturing PMI historical series with sector linkage notes. |
-| **23** | **Personalized Feed & Filings** | **Complete** | Dynamic portfolio and watchlist event tracking for announcements, earnings, and disclosures. |
-| **24** | **Event-Based Alerts Engine** | **Complete** | Threshold monitors for 52-week highs/lows, intraday price deviations, and portfolio drawdown alerts (strictly non-predictive). |
-| **25** | **Tax & Capital Gains Analytics** | **Complete** | Indian Union Budget 2024-25 rules: STCG @ 20%, LTCG @ 12.5% above ₹1,25,000 exemption limit. Tax lots, unrealized/realized gains, dividend income, and CSV exports. |
-| **26** | **AI Financial Tutor Mode** | **Complete** | Interactive guides for financial concepts (ROCE, P/E, Duration, Tracking Error, Beta, Sharpe) with formulas, real market examples, and checkpoint quizzes. |
-| **27** | **AI Observability & Fallbacks** | **Complete** | Offline-first architecture. Fully functional without external API keys; `AgentRunLog` tracks run execution telemetry. |
-| **28** | **Compliance, Disclaimers & Exports**| **Complete** | Persistent non-advisory regulatory disclaimers, formatted Lakh/Crore Indian currency formatters, CSV exports, and provider health telemetry. |
+| **1** | **Chart Indicators & Sub-Panes** | Lightweight Charts v5.2.1 canvas engine. SMA (20, 50, 200), EMA (9, 21, 50), VWAP, Bollinger Bands, Ichimoku Cloud overlays; toggleable sub-pane oscillators (RSI 14, MACD with histogram, Stochastic %K/%D, ADX 14). |
+| **2** | **Candlestick Pattern Intelligence** | Rule-based recognition engine for Doji, Hammer, Inverted Hammer, Shooting Star, Bullish/Bearish Engulfing, Morning/Evening Star, Harami, Marubozu, Three White Soldiers, Three Black Crows. Clickable markers with structural metrics & non-predictive observation notes. |
+| **3** | **Data Freshness & Indicators** | Real-time badge indicators (`Delayed 15m (NSE)` or `Market Closed - As of DD Mon HH:MM`) displayed on quotes, research views, and chart headers. |
+| **4** | **No Fabricated Numbers** | All synthetic random-walk / Brownian motion generators removed. Clear fallback to `"Data unavailable"` with provider telemetry. |
+| **5** | **Comprehensive Stock Metrics** | Balance sheet fundamentals: P/E, P/B, EV/EBITDA, ROE, ROCE, Debt-to-Equity, FCF, Promoter Pledge %, FII/DII holding distributions, and quarterly institutional changes. |
+| **6** | **Stock Comparison Engine** | Side-by-side multi-stock comparison matrix with valuation rankings and normalized % return charts comparing up to 5 symbols over 1M/6M/1Y/5Y. |
+| **7** | **Universal Entity Search** | Dynamic symbol search across 5,000+ NSE/BSE listed equities, indices, and asset classes with real-time ticker discovery. |
+| **8** | **Watchlists Engine** | Multi-list management system with persistent SQLite/Postgres storage, real-time performance summary, batch removal/addition, and 1-click research navigation. |
+| **9** | **Corporate Actions & Bulk Deals** | Historical dividend yields, splits, bonus shares, rights issues, and institutional bulk/block deal transaction filings. |
+| **10** | **Sector Rotation Analysis** | Sectoral performance heatmap, P/E multiples, breadth ratios, and historical capital flow analysis. |
+| **11** | **Index Survivorship Context** | NIFTY 50 and NIFTY Bank constituent tracking with historical additions and deletions. |
+| **12** | **Mutual Funds & Overlap Engine** | Explorer across Large Cap, Flexi Cap, Mid Cap, Hybrid, and Debt schemes. Mathematical portfolio overlap calculator ($\sum \min(w_{i,A}, w_{i,B})$) detecting duplicate holdings. |
+| **13** | **ETF Look-Through** | ETF catalog (NIFTYBEES, GOLDBEES, JUNIORBEES, BANKBEES, LIQUIDBEES) with underlying constituent look-through for exposure unmasking. |
+| **14** | **Bonds & Bond Ladder Simulator** | Sovereign G-Secs (7.18% GS 2033, 7.10% GS 2034) and AAA PSU bonds. Macauley/Modified duration, YTM, and interactive Bond Ladder cash-flow schedule simulator. |
+| **15** | **Commodities & Currencies** | Gold (₹/10g), Silver (₹/kg), Brent Crude ($/bbl), and USD/INR exchange rates with historical charts and equity correlation notes. |
+| **16** | **Portfolio Analytics & Risk Lab** | CAGR, XIRR, Sharpe, Sortino, Max Drawdown, Benchmark Beta, Sector Concentration, and Stress-Testing simulations (-10%/-20% market shocks, crude shock, rate hike). |
+| **17** | **Portfolio Rebalancing Simulator**| Current vs Target asset allocation simulator generating hypothetical rebalancing orders without live execution risk. |
+| **18** | **Grounded RAG Document AI** | Vector cosine-similarity financial document search over corporate annual reports and quarterly filings with strict prompt-injection defenses. |
+| **19** | **AI Research Reports** | Structured research generation strictly separating Facts, Calculated Metrics, Historical Observations, and Uncertainties. |
+| **20** | **Research Workspace & Journal** | Trade thesis logging, emotional rating, execution quality tracking, and thesis dossier recording. |
+| **21** | **Quant Research Lab & Backtesting**| Dual SMA crossover backtester with 70% In-Sample / 30% Out-of-Sample segregation, slippage assumptions (10 bps), equity curves, CAGR, drawdown, and factor intelligence profiles. |
+| **22** | **Macroeconomic Dashboard** | CPI Inflation, Real GDP Growth, RBI Repo Rate, 10Y Benchmark G-Sec Yield, and HSBC India Manufacturing PMI historical series with sector linkage notes. |
+| **23** | **Personalized Feed & Filings** | Dynamic portfolio and watchlist event tracking for announcements, earnings, and disclosures. |
+| **24** | **Event-Based Alerts Engine** | Threshold monitors for 52-week highs/lows, intraday price deviations, and portfolio drawdown alerts (strictly non-predictive). |
+| **25** | **Tax & Capital Gains Analytics** | Indian Union Budget 2024-25 rules: STCG @ 20%, LTCG @ 12.5% above ₹1,25,000 exemption limit. Tax lots, unrealized/realized gains, dividend income, and CSV exports. |
+| **26** | **AI Financial Tutor Mode** | Interactive guides for financial concepts (ROCE, P/E, Duration, Tracking Error, Beta, Sharpe) with formulas, real market examples, and checkpoint quizzes. |
+| **27** | **AI Observability & Fallbacks** | Offline-first architecture. Fully functional without external API keys; `AgentRunLog` tracks run execution telemetry. |
+| **28** | **Compliance, Disclaimers & Exports**| Persistent non-advisory regulatory disclaimers, formatted Lakh/Crore Indian currency formatters, CSV exports, and provider health telemetry. |
 
 ---
 
