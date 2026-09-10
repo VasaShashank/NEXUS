@@ -4,6 +4,7 @@
 
 # Explicit User Exclusion
 NEXUS_FEATURE_AUDIT.md
+NEXUS_LEARNING_GUIDE.md
 
 # Dependencies & Package Managers
 node_modules/
