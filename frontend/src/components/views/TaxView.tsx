@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { api, TaxSummaryResponse } from "@/lib/api";
+import { api, API_BASE_URL, TaxSummaryResponse } from "@/lib/api";
 import {
   Receipt,
   Download,
@@ -25,7 +25,7 @@ export const TaxView: React.FC = () => {
         const data = await api.getTaxSummary();
         setTaxData(data);
       } catch (err) {
-        console.warn("Failed to load tax analytics:", err);
+        console.error("Failed to load tax report", err);
       } finally {
         setLoading(false);
       }
@@ -34,7 +34,7 @@ export const TaxView: React.FC = () => {
   }, []);
 
   const handleExportCSV = () => {
-    window.open("http://localhost:8000/api/v1/tax/export/csv", "_blank");
+    window.open(`${API_BASE_URL}/tax/export/csv`, "_blank");
   };
 
   return (

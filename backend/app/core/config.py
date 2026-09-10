@@ -2,6 +2,7 @@
 Backend core configuration for NEXUS.
 Supports both PostgreSQL and SQLite fallback with zero configuration.
 """
+import os
 from typing import List, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -14,7 +15,10 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     
     # Database: Supports SQLite for zero-friction local dev, or PostgreSQL
-    DATABASE_URL: str = "sqlite:///./nexus.db"
+    DATABASE_URL: str = os.environ.get(
+        "DATABASE_URL",
+        "sqlite:////tmp/nexus.db" if os.environ.get("VERCEL") else "sqlite:///./nexus.db"
+    )
     
     # Redis cache (optional, graceful fallback if unavailable)
     REDIS_URL: Optional[str] = None

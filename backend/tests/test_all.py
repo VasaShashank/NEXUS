@@ -2,6 +2,12 @@
 Automated Test Suite for NEXUS Financial Platform.
 Covers Authentication, Market Data, Paper Trading, Technical Indicators, and AI Tools.
 """
+import os
+import sys
+
+# Ensure backend root is in sys.path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine

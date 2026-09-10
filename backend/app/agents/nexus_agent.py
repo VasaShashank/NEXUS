@@ -6,7 +6,15 @@ and factual vs interpretation separation.
 from typing import Dict, Any, List, Optional, TypedDict
 import time
 import uuid
-from langgraph.graph import StateGraph, END
+
+try:
+    from langgraph.graph import StateGraph, END
+    HAS_LANGGRAPH = True
+except ImportError:
+    HAS_LANGGRAPH = False
+    StateGraph = None
+    END = "__END__"
+
 from app.agents.tools import AVAILABLE_TOOLS
 from app.schemas.agent import AgentRunResponse, ToolCallLog, EvidenceCitation
 
@@ -211,17 +219,32 @@ def synthesize_research_node(state: ResearchState) -> Dict[str, Any]:
 
 
 def build_research_graph():
-    graph = StateGraph(ResearchState)
-    graph.add_node("parse_intent", parse_intent_node)
-    graph.add_node("execute_tools", execute_tools_node)
-    graph.add_node("synthesize_research", synthesize_research_node)
+    if HAS_LANGGRAPH and StateGraph is not None:
+        try:
+            graph = StateGraph(ResearchState)
+            graph.add_node("parse_intent", parse_intent_node)
+            graph.add_node("execute_tools", execute_tools_node)
+            graph.add_node("synthesize_research", synthesize_research_node)
 
-    graph.set_entry_point("parse_intent")
-    graph.add_edge("parse_intent", "execute_tools")
-    graph.add_edge("execute_tools", "synthesize_research")
-    graph.add_edge("synthesize_research", END)
+            graph.set_entry_point("parse_intent")
+            graph.add_edge("parse_intent", "execute_tools")
+            graph.add_edge("execute_tools", "synthesize_research")
+            graph.add_edge("synthesize_research", END)
 
-    return graph.compile()
+            return graph.compile()
+        except Exception:
+            pass
+
+    # Resilient sequential fallback executor
+    class SequentialResearchRunner:
+        def invoke(self, state: Dict[str, Any]) -> Dict[str, Any]:
+            cur = dict(state)
+            cur.update(parse_intent_node(cur))
+            cur.update(execute_tools_node(cur))
+            cur.update(synthesize_research_node(cur))
+            return cur
+
+    return SequentialResearchRunner()
 
 
 research_graph = build_research_graph()
