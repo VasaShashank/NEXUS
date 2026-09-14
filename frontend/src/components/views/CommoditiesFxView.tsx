@@ -15,19 +15,23 @@ import { ComplianceDisclaimer } from "@/components/common/ComplianceDisclaimer";
 export const CommoditiesFxView: React.FC = () => {
   const [items, setItems] = useState<CommodityFxItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await api.getCommoditiesFx();
+      setItems(data);
+    } catch (err) {
+      console.warn("Failed to load commodities/fx:", err);
+      setError("Could not reach the NEXUS commodities & FX service. Retry below.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      try {
-        const data = await api.getCommoditiesFx();
-        setItems(data);
-      } catch (err) {
-        console.warn("Failed to load commodities/fx:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
     loadData();
   }, []);
 
@@ -49,13 +53,25 @@ export const CommoditiesFxView: React.FC = () => {
         </p>
       </div>
 
+      {error && (
+        <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center justify-between gap-4">
+          <span>{error}</span>
+          <button
+            onClick={loadData}
+            className="shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-medium bg-rose-500/15 border border-rose-500/30 text-rose-200 hover:bg-rose-500/25 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {loading && (
         <div className="p-12 text-center text-xs text-slate-400 animate-pulse">
           Loading commodities and foreign exchange quotes...
         </div>
       )}
 
-      {!loading && (
+      {!loading && !error && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {items.map((item) => {
             const isUp = item.change_1d >= 0;

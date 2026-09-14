@@ -24,6 +24,7 @@ interface PortfolioViewProps {
 export const PortfolioView: React.FC<PortfolioViewProps> = ({ onSelectStock, onNavigate }) => {
   const [portfolio, setPortfolio] = useState<PortfolioSummaryResponse | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showOrderModal, setShowOrderModal] = useState<boolean>(false);
   const [orderSymbol, setOrderSymbol] = useState<string>("RELIANCE");
   const [orderSide, setOrderSide] = useState<"BUY" | "SELL">("BUY");
@@ -32,11 +33,14 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({ onSelectStock, onN
   const [isExecuting, setIsExecuting] = useState<boolean>(false);
 
   const fetchPortfolio = async () => {
+    setIsLoading(true);
+    setLoadError(null);
     try {
       const res = await api.getPortfolioSummary();
       setPortfolio(res);
     } catch (err) {
       console.error("Failed to fetch portfolio:", err);
+      setLoadError("Could not reach the NEXUS portfolio service. Retry below.");
     } finally {
       setIsLoading(false);
     }
@@ -79,6 +83,22 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({ onSelectStock, onN
       console.error("Reset failed:", err);
     }
   };
+
+  if (loadError && !portfolio) {
+    return (
+      <div className="p-6 max-w-2xl mx-auto">
+        <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center justify-between gap-4">
+          <span>{loadError}</span>
+          <button
+            onClick={fetchPortfolio}
+            className="shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-medium bg-rose-500/15 border border-rose-500/30 text-rose-200 hover:bg-rose-500/25 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading || !portfolio) {
     return (

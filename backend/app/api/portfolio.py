@@ -25,6 +25,11 @@ class RebalanceRequest(BaseModel):
     target_allocations: Dict[str, float]  # e.g. {"RELIANCE": 25.0, "TCS": 25.0, "HDFCBANK": 25.0, "INFY": 25.0}
 
 
+class OptimizationRequest(BaseModel):
+    symbols: list[str] = []
+    transaction_cost_bps: float = 10.0
+
+
 @router.get("/summary", response_model=PortfolioSummaryResponse)
 def get_portfolio_summary(
     db: Session = Depends(get_db),
@@ -88,6 +93,16 @@ def simulate_rebalancing(
 ):
     """Simulate portfolio rebalancing to target allocations with hypothetical trade requirements."""
     return PortfolioAnalyticsService.simulate_rebalancing(db, current_user, payload.target_allocations)
+
+
+@router.post("/optimize", response_model=Dict[str, Any])
+def optimize_portfolio(
+    payload: OptimizationRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return an illustrative inverse-volatility allocation from sourced history."""
+    return PortfolioAnalyticsService.optimize_allocation(db, current_user, payload.symbols, payload.transaction_cost_bps)
 
 
 @router.post("/reset", response_model=PortfolioSummaryResponse)

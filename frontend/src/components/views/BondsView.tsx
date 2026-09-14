@@ -17,6 +17,7 @@ import { ComplianceDisclaimer } from "@/components/common/ComplianceDisclaimer";
 export const BondsView: React.FC = () => {
   const [bonds, setBonds] = useState<BondItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Ladder Simulator state
   const [investmentAmount, setInvestmentAmount] = useState<number>(1000000);
@@ -24,18 +25,21 @@ export const BondsView: React.FC = () => {
   const [ladderResult, setLadderResult] = useState<any | null>(null);
   const [ladderLoading, setLadderLoading] = useState<boolean>(false);
 
+  const loadBonds = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await api.getBonds();
+      setBonds(data);
+    } catch (err) {
+      console.warn("Failed to load bonds:", err);
+      setError("Could not reach the NEXUS fixed-income service. Retry below.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const loadBonds = async () => {
-      setLoading(true);
-      try {
-        const data = await api.getBonds();
-        setBonds(data);
-      } catch (err) {
-        console.warn("Failed to load bonds:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
     loadBonds();
   }, []);
 
@@ -78,6 +82,18 @@ export const BondsView: React.FC = () => {
         </div>
       </div>
 
+      {error && (
+        <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center justify-between gap-4">
+          <span>{error}</span>
+          <button
+            onClick={loadBonds}
+            className="shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-medium bg-rose-500/15 border border-rose-500/30 text-rose-200 hover:bg-rose-500/25 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {loading && (
         <div className="p-12 text-center text-xs text-slate-400 animate-pulse">
           Loading fixed income bonds & yields...
@@ -85,14 +101,16 @@ export const BondsView: React.FC = () => {
       )}
 
       {/* Bond Directory Table */}
-      {!loading && (
+      {!loading && !error && (
         <div className="rounded-xl bg-surface-50 border border-border overflow-hidden">
           <div className="p-4 border-b border-border flex items-center justify-between">
             <h3 className="text-sm font-semibold text-foreground">Sovereign & PSU Fixed Income Securities</h3>
             <span className="text-[11px] text-slate-500">Trading on CCIL / NSE Debt Segment</span>
           </div>
 
-          <div className="overflow-x-auto">
+          {bonds.length === 0 ? (
+            <div className="p-10 text-center text-sm text-slate-400">Data unavailable: no verified live CCIL/RBI/issuer bond feed is configured.</div>
+          ) : <div className="overflow-x-auto">
             <table className="w-full text-xs text-left">
               <thead>
                 <tr className="border-b border-white/[0.06] bg-white/[0.02] text-slate-400 text-[11px]">
@@ -136,7 +154,7 @@ export const BondsView: React.FC = () => {
                 ))}
               </tbody>
             </table>
-          </div>
+          </div>}
         </div>
       )}
 

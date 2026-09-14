@@ -4,7 +4,7 @@ API dependencies: Authentication, User extraction, and Database session injectio
 from typing import Generator, Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-import jwt
+from jose import jwt
 from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.database.session import get_db
@@ -30,7 +30,7 @@ def get_current_user_optional(
                 user = db.query(User).filter(User.id == int(user_id)).first()
                 if user and user.is_active:
                     return user
-        except jwt.PyJWTError:
+        except jwt.JWTError:
             pass
 
     # Default institutional demo user

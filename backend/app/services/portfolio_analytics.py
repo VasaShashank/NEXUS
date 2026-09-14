@@ -6,10 +6,11 @@ and Rebalancing Simulator.
 """
 from typing import Dict, Any, List
 import math
-from datetime import datetime, timedelta
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from app.models.user import User
 from app.models.portfolio import Portfolio, Holding, Transaction
+from app.models.portfolio_observation import PortfolioObservation
 from app.schemas.portfolio import (
     PortfolioAnalyticsResponse,
     PortfolioRiskResponse,
@@ -18,13 +19,86 @@ from app.schemas.portfolio import (
 )
 from app.services.trading_service import TradingService
 from app.providers.multi_asset_data import ETFS_DATA
+from app.providers.market_data import market_data_provider
 
 
 class PortfolioAnalyticsService:
     @staticmethod
+    def optimize_allocation(db: Session, user: User, symbols: List[str], transaction_cost_bps: float = 10.0) -> Dict[str, Any]:
+        """Build an illustrative inverse-volatility allocation from sourced daily returns."""
+        if not symbols:
+            portfolio = TradingService.get_or_create_user_portfolio(db, user)
+            symbols = [holding.symbol for holding in portfolio.holdings]
+        normalized = list(dict.fromkeys(symbol.upper().split(".")[0] for symbol in symbols if symbol.strip()))[:20]
+        return_series: Dict[str, List[float]] = {}
+        for symbol in normalized:
+            candles = market_data_provider.get_historical_candles(symbol, "1Y")
+            returns = [
+                (candles[index].close / candles[index - 1].close) - 1
+                for index in range(1, len(candles))
+                if candles[index - 1].close > 0 and candles[index].close > 0
+            ]
+            if len(returns) >= 30:
+                return_series[symbol] = returns
+        if not return_series:
+            return {"symbols": normalized, "data_available": False, "allocations": [], "disclaimer": "At least 30 sourced daily returns are required per asset."}
+
+        volatilities = {}
+        for symbol, returns in return_series.items():
+            mean = sum(returns) / len(returns)
+            volatility = (sum((value - mean) ** 2 for value in returns) / max(1, len(returns) - 1)) ** 0.5
+            volatilities[symbol] = volatility * (252 ** 0.5)
+        inverse_total = sum(1 / volatility for volatility in volatilities.values() if volatility > 0)
+        allocations = [
+            {
+                "symbol": symbol,
+                "annualized_volatility_pct": round(volatilities[symbol] * 100, 2),
+                "target_weight_pct": round((1 / volatilities[symbol]) / inverse_total * 100, 2) if volatilities[symbol] > 0 and inverse_total else 0.0,
+                "observations": len(return_series[symbol]),
+            }
+            for symbol in volatilities
+        ]
+        allocations.sort(key=lambda item: item["target_weight_pct"], reverse=True)
+        return {
+            "symbols": list(return_series),
+            "data_available": True,
+            "allocations": allocations,
+            "transaction_cost_bps_assumption": transaction_cost_bps,
+            "methodology": "Inverse-volatility target weights from aligned-free sourced daily returns; this is a heuristic, not a forecast or execution instruction.",
+            "disclaimer": "Historical risk estimates are sensitive to the lookback window and do not guarantee future diversification or returns.",
+        }
+    @staticmethod
+    def _annualized_return(start_value: float, end_value: float, start_date: datetime, end_date: datetime) -> float:
+        if start_value <= 0 or end_value <= 0 or end_date <= start_date:
+            return 0.0
+        years = max((end_date - start_date).total_seconds() / (365.25 * 86400), 1 / 365.25)
+        return ((end_value / start_value) ** (1 / years) - 1) * 100
+
+    @staticmethod
+    def _xirr(cash_flows: List[tuple[datetime, float]]) -> float:
+        if not cash_flows or not any(amount < 0 for _, amount in cash_flows) or not any(amount > 0 for _, amount in cash_flows):
+            return 0.0
+
+        start_date = min(date for date, _ in cash_flows)
+
+        def npv(rate: float) -> float:
+            return sum(amount / ((1 + rate) ** (((date - start_date).total_seconds()) / (365.25 * 86400))) for date, amount in cash_flows)
+
+        low, high = -0.9999, 10.0
+        if npv(low) * npv(high) > 0:
+            return 0.0
+        for _ in range(100):
+            middle = (low + high) / 2
+            if npv(low) * npv(middle) <= 0:
+                high = middle
+            else:
+                low = middle
+        return round(((low + high) / 2) * 100, 2)
+
+    @staticmethod
     def calculate_analytics(db: Session, user: User) -> PortfolioAnalyticsResponse:
-        summary = TradingService.get_portfolio_summary(db, user)
         portfolio = TradingService.get_or_create_user_portfolio(db, user)
+        summary = TradingService.get_portfolio_summary(db, user)
 
         # Calculate Win-Rate from sell transactions
         sell_txs = db.query(Transaction).filter(
@@ -35,54 +109,125 @@ class PortfolioAnalyticsService:
         win_count = sum(1 for t in sell_txs if t.realized_pnl > 0)
         win_rate = round((win_count / len(sell_txs)) * 100, 1) if sell_txs else 66.7
 
-        # Historical simulated equity curve vs NIFTY 50
-        total_val = summary.total_value
-        return_pct = summary.unrealized_pnl_pct
+        now = datetime.now(timezone.utc)
+        start_date = portfolio.created_at or now
+        if start_date.tzinfo is None:
+            start_date = start_date.replace(tzinfo=timezone.utc)
+        transactions = db.query(Transaction).filter(
+            Transaction.portfolio_id == portfolio.id
+        ).order_by(Transaction.executed_at.asc()).all()
 
+        benchmark_quote = market_data_provider.get_quote("^NSEI")
+        db.add(PortfolioObservation(
+            portfolio_id=portfolio.id,
+            observed_at=now,
+            portfolio_value=summary.total_value,
+            benchmark_value=benchmark_quote.current_price if benchmark_quote else None,
+            benchmark_source=benchmark_quote.data_source if benchmark_quote else None,
+        ))
+        db.commit()
+        observations = db.query(PortfolioObservation).filter(
+            PortfolioObservation.portfolio_id == portfolio.id
+        ).order_by(PortfolioObservation.observed_at.asc()).limit(365).all()
+
+        # Only use observed portfolio states. Historical marks are unavailable unless a
+        # provider observation was persisted, so no synthetic daily path is generated.
+        observed_dates = [start_date]
+        for tx in transactions:
+            if tx.executed_at:
+                tx_date = tx.executed_at
+                if tx_date.tzinfo is None:
+                    tx_date = tx_date.replace(tzinfo=timezone.utc)
+                observed_dates.append(tx_date)
+        observed_dates.append(now)
         equity_curve = []
+        net_trade_cash_flow = sum(
+            tx.total_amount if tx.side == "BUY" else -tx.total_amount
+            for tx in transactions
+        )
+        initial_value = portfolio.cash_balance + net_trade_cash_flow
+        initial_value = max(initial_value, 0.0)
+        if observations:
+            for observation in observations:
+                date = observation.observed_at
+                if date.tzinfo is None:
+                    date = date.replace(tzinfo=timezone.utc)
+                value = observation.portfolio_value
+                equity_curve.append({
+                    "date": date.astimezone(timezone.utc).strftime("%Y-%m-%d"),
+                    "portfolio_value": round(value, 2),
+                    "return_pct": round(((value - initial_value) / initial_value) * 100, 2) if initial_value else 0.0
+                })
+        else:
+            for date in sorted(set(observed_dates)):
+                value = summary.total_value
+                if date == start_date and not transactions:
+                    value = portfolio.cash_balance
+                equity_curve.append({
+                    "date": date.astimezone(timezone.utc).strftime("%Y-%m-%d"),
+                    "portfolio_value": round(value, 2),
+                    "return_pct": round(((value - initial_value) / initial_value) * 100, 2) if initial_value else 0.0
+                })
+
+        final_value = summary.total_value
+        cagr = PortfolioAnalyticsService._annualized_return(initial_value, final_value, start_date, now) if initial_value else 0.0
+        xirr = PortfolioAnalyticsService._xirr([(start_date, -initial_value), (now, final_value)]) if initial_value else 0.0
+        volatility = 0.0
+        sharpe = 0.0
+        max_dd = 0.0
+        peak = initial_value
+        for point in equity_curve:
+            value = point["portfolio_value"]
+            peak = max(peak, value)
+            max_dd = min(max_dd, ((value - peak) / peak) * 100 if peak else 0.0)
+        beta = 0.0
+        alpha = 0.0
         benchmark_curve = []
-        now = datetime.now()
-        base_nav = 1000000.0
-        nifty_base = 24000.0
-
-        for i in range(30, -1, -1):
-            date_str = (now - timedelta(days=i)).strftime("%Y-%m-%d")
-            prog = (30 - i) / 30.0
-
-            curr_sim_val = base_nav + (total_val - base_nav) * prog
-            equity_curve.append({
-                "date": date_str,
-                "portfolio_value": round(curr_sim_val, 2),
-                "return_pct": round(((curr_sim_val - base_nav) / base_nav) * 100, 2)
-            })
-
-            bmk_val = nifty_base * (1 + (prog * 0.038))
-            benchmark_curve.append({
-                "date": date_str,
-                "benchmark_value": round(bmk_val, 2),
-                "return_pct": round(((bmk_val - nifty_base) / nifty_base) * 100, 2)
-            })
-
-        cagr = round(max(-50.0, min(120.0, return_pct * 1.8)), 2)
-        xirr = round(cagr * 1.05, 2)
-        volatility = 14.8
-        risk_free_rate = 6.8
-        sharpe = round((cagr - risk_free_rate) / volatility, 2) if volatility > 0 else 1.2
-        max_dd = -6.4
-        beta = 0.94
-        alpha = round(cagr - (risk_free_rate + beta * (13.5 - risk_free_rate)), 2)
+        benchmark_observations = [observation for observation in observations if observation.benchmark_value]
+        if benchmark_observations:
+            benchmark_start = benchmark_observations[0].benchmark_value
+            for observation in benchmark_observations:
+                benchmark_curve.append({
+                    "date": observation.observed_at.strftime("%Y-%m-%d"),
+                    "benchmark_value": round(observation.benchmark_value, 2),
+                    "return_pct": round(((observation.benchmark_value - benchmark_start) / benchmark_start) * 100, 2),
+                })
+        observation_count = len(observations)
+        long_history_ready = observation_count >= 30 and len(benchmark_observations) >= 30
+        if long_history_ready:
+            portfolio_returns = [(observations[index].portfolio_value / observations[index - 1].portfolio_value) - 1 for index in range(1, len(observations)) if observations[index - 1].portfolio_value > 0]
+            benchmark_returns = [(benchmark_observations[index].benchmark_value / benchmark_observations[index - 1].benchmark_value) - 1 for index in range(1, len(benchmark_observations)) if benchmark_observations[index - 1].benchmark_value > 0]
+            count = min(len(portfolio_returns), len(benchmark_returns))
+            if count >= 20:
+                portfolio_returns = portfolio_returns[-count:]
+                benchmark_returns = benchmark_returns[-count:]
+                portfolio_avg = sum(portfolio_returns) / count
+                benchmark_avg = sum(benchmark_returns) / count
+                variance = sum((value - benchmark_avg) ** 2 for value in benchmark_returns)
+                covariance = sum((portfolio_returns[index] - portfolio_avg) * (benchmark_returns[index] - benchmark_avg) for index in range(count))
+                beta = round(covariance / variance, 2) if variance else 0.0
+                if count >= 2:
+                    portfolio_std = (sum((value - portfolio_avg) ** 2 for value in portfolio_returns) / (count - 1)) ** 0.5
+                    volatility = round(portfolio_std * (252 ** 0.5) * 100, 2)
+                    sharpe = round((portfolio_avg * 252) / (portfolio_std * (252 ** 0.5)), 2) if portfolio_std else 0.0
 
         return PortfolioAnalyticsResponse(
-            cagr=cagr,
+            cagr=round(cagr, 2),
             xirr=xirr,
-            annualized_volatility=volatility,
-            sharpe_ratio=sharpe,
-            max_drawdown=max_dd,
-            beta_vs_nifty=beta,
+            annualized_volatility=volatility if long_history_ready else 0.0,
+            sharpe_ratio=sharpe if long_history_ready else 0.0,
+            max_drawdown=round(max_dd, 2),
+            beta_vs_nifty=beta if long_history_ready else 0.0,
             alpha=alpha,
             win_rate=win_rate,
             equity_curve=equity_curve,
-            benchmark_comparison=benchmark_curve
+            benchmark_comparison=benchmark_curve,
+            observation_count=observation_count,
+            long_history_metrics_ready=long_history_ready,
+            metrics_disclaimer=(
+                f"Long-history risk metrics require at least 30 persisted portfolio and benchmark observations; currently {observation_count}."
+                if not long_history_ready else None
+            ),
         )
 
     @staticmethod

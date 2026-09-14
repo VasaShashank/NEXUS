@@ -67,6 +67,7 @@ class Transaction(Base):
     total_amount = Column(Float, nullable=False)
     fees = Column(Float, default=0.0)
     realized_pnl = Column(Float, default=0.0)
+    idempotency_key = Column(String, nullable=True, index=True, unique=True)
     executed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     portfolio = relationship("Portfolio", back_populates="transactions")

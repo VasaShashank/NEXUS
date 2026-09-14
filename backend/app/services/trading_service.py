@@ -31,6 +31,23 @@ class TradingService:
     @staticmethod
     def execute_order(db: Session, user: User, order: OrderCreateRequest) -> OrderResponse:
         portfolio = TradingService.get_or_create_user_portfolio(db, user)
+        if order.idempotency_key:
+            existing = db.query(Transaction).filter(Transaction.idempotency_key == order.idempotency_key).first()
+            if existing and existing.portfolio_id == portfolio.id:
+                return OrderResponse(
+                    id=existing.id,
+                    portfolio_id=existing.portfolio_id,
+                    symbol=existing.symbol,
+                    side=existing.side,
+                    quantity=existing.quantity,
+                    price=existing.price,
+                    total_amount=existing.total_amount,
+                    realized_pnl=existing.realized_pnl,
+                    executed_at=existing.executed_at.isoformat(),
+                    message="Existing execution returned for idempotency key.",
+                    order_type=existing.order_type,
+                    status="EXECUTED",
+                )
         symbol = order.symbol.upper().split(".")[0]
         
         quote = market_data_provider.get_quote(symbol)
@@ -39,10 +56,37 @@ class TradingService:
 
         price = quote.current_price
         side = order.side.upper()
+        order_type = order.order_type.upper()
         quantity = order.quantity
 
         if quantity <= 0:
             raise HTTPException(status_code=400, detail="Order quantity must be greater than zero.")
+        if side not in ("BUY", "SELL"):
+            raise HTTPException(status_code=400, detail="Invalid side. Must be BUY or SELL.")
+        if order.validity.upper() not in ("DAY", "IOC", "GTC"):
+            raise HTTPException(status_code=400, detail="Invalid validity. Use DAY, IOC, or GTC.")
+        if order_type not in ("MARKET", "LIMIT", "STOP_LOSS"):
+            raise HTTPException(status_code=400, detail="Invalid order type. Use MARKET, LIMIT, or STOP_LOSS.")
+
+        if order_type == "LIMIT":
+            if order.limit_price is None or order.limit_price <= 0:
+                raise HTTPException(status_code=400, detail="LIMIT orders require a positive limit_price.")
+            is_marketable = price <= order.limit_price if side == "BUY" else price >= order.limit_price
+            if not is_marketable:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"LIMIT order not executed: current price ₹{price:,.2f} does not satisfy the {side} limit ₹{order.limit_price:,.2f}.",
+                )
+            price = order.limit_price
+        elif order_type == "STOP_LOSS":
+            if order.stop_price is None or order.stop_price <= 0:
+                raise HTTPException(status_code=400, detail="STOP_LOSS orders require a positive stop_price.")
+            is_triggered = price >= order.stop_price if side == "BUY" else price <= order.stop_price
+            if not is_triggered:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"STOP_LOSS order not triggered: current price ₹{price:,.2f} has not reached ₹{order.stop_price:,.2f}.",
+                )
 
         total_cost = round(price * quantity, 2)
         realized_pnl = 0.0
@@ -129,9 +173,6 @@ class TradingService:
                 holding.unrealized_pnl_pct = round((holding.unrealized_pnl / holding.invested_value) * 100, 2)
 
             message = f"Executed SELL order for {quantity} shares of {symbol} at ₹{price:,.2f} (Realized P&L: ₹{realized_pnl:+,.2f})"
-        else:
-            raise HTTPException(status_code=400, detail="Invalid side. Must be BUY or SELL.")
-
         # Record transaction
         tx = Transaction(
             portfolio_id=portfolio.id,
@@ -143,6 +184,7 @@ class TradingService:
             price=price,
             total_amount=total_cost,
             realized_pnl=realized_pnl,
+            idempotency_key=order.idempotency_key,
             executed_at=datetime.now(timezone.utc)
         )
         db.add(tx)
@@ -159,7 +201,9 @@ class TradingService:
             total_amount=total_cost,
             realized_pnl=realized_pnl,
             executed_at=tx.executed_at.isoformat(),
-            message=message
+            message=f"{message} ({order_type}, {order.validity.upper()})",
+            order_type=order_type,
+            status="EXECUTED"
         )
 
     @staticmethod

@@ -12,6 +12,9 @@ import {
   Layers,
   Sparkles,
   Target,
+  AlertCircle,
+  CheckCircle2,
+  LoaderCircle,
 } from "lucide-react";
 import { api, MarketOverviewResponse, StockQuote, IndexQuote } from "@/lib/api";
 import { InfoTooltip } from "@/components/common/InfoTooltip";
@@ -24,25 +27,52 @@ interface OverviewViewProps {
 export const OverviewView: React.FC<OverviewViewProps> = ({ onSelectStock, onNavigate }) => {
   const [data, setData] = useState<MarketOverviewResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"gainers" | "losers" | "active">("gainers");
+  const [providerStatus, setProviderStatus] = useState<"loading" | "live" | "unavailable" | "error">("loading");
+
+  const fetchOverview = async () => {
+    setIsLoading(true);
+    setError(null);
+    setProviderStatus("loading");
+    try {
+      const res = await api.getMarketOverview();
+      setData(res);
+      setProviderStatus(res.indices.length > 0 || res.top_gainers.length > 0 ? "live" : "unavailable");
+    } catch (err) {
+      console.error("Failed to load market overview:", err);
+      setError("Could not reach the NEXUS market data service. Retry below.");
+      setProviderStatus("error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchOverview = async () => {
-      try {
-        const res = await api.getMarketOverview();
-        setData(res);
-      } catch (err) {
-        console.error("Failed to load market overview:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
     fetchOverview();
   }, []);
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <ProviderStatusBanner status={providerStatus} />
+        <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center justify-between gap-4">
+          <span>{error}</span>
+          <button
+            onClick={fetchOverview}
+            className="shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-medium bg-rose-500/15 border border-rose-500/30 text-rose-200 hover:bg-rose-500/25 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading || !data) {
     return (
       <div className="p-6 space-y-6">
+        <ProviderStatusBanner status={providerStatus} />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="h-32 rounded-2xl skeleton animate-pulse" />
@@ -60,6 +90,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onSelectStock, onNav
 
   return (
     <div className="p-5 lg:p-6 space-y-6 max-w-7xl mx-auto">
+      <ProviderStatusBanner status={providerStatus} />
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-white/[0.05] animate-float-up">
         <div>
@@ -365,6 +396,45 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onSelectStock, onNav
             );
           })}
         </div>
+      </div>
+    </div>
+  );
+};
+
+const ProviderStatusBanner: React.FC<{ status: "loading" | "live" | "unavailable" | "error" }> = ({ status }) => {
+  const config = {
+    loading: {
+      icon: LoaderCircle,
+      label: "Loading provider data",
+      detail: "Connecting to Yahoo Finance and waiting for sourced market observations...",
+      className: "border-amber-400/25 bg-amber-400/10 text-amber-200",
+    },
+    live: {
+      icon: CheckCircle2,
+      label: "Provider data received",
+      detail: "Market values on this view came from the configured provider and may be delayed or cached.",
+      className: "border-emerald-400/25 bg-emerald-400/10 text-emerald-200",
+    },
+    unavailable: {
+      icon: AlertCircle,
+      label: "Provider returned no market data",
+      detail: "No hardcoded prices are being shown. Retry when Yahoo Finance is reachable.",
+      className: "border-amber-400/25 bg-amber-400/10 text-amber-200",
+    },
+    error: {
+      icon: AlertCircle,
+      label: "Market data request failed",
+      detail: "The dashboard is not displaying fallback prices or fabricated values.",
+      className: "border-rose-400/25 bg-rose-400/10 text-rose-200",
+    },
+  }[status];
+  const Icon = config.icon;
+  return (
+    <div className={`flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-xs ${config.className}`}>
+      <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${status === "loading" ? "animate-spin" : ""}`} />
+      <div>
+        <strong className="block font-semibold">{config.label}</strong>
+        <span className="opacity-80">{config.detail}</span>
       </div>
     </div>
   );

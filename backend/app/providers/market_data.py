@@ -6,10 +6,12 @@ dynamic ticker discovery for all Indian & global equities, and strict zero-fabri
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor
 import math
 import yfinance as yf
 from app.schemas.stock import StockQuote, IndexQuote, HistoricalCandle, ProviderHealthResponse
 from app.providers.indian_equities_data import INDIAN_STOCKS_DATA, INDIAN_INDICES
+from app.core.cache import ttl_cache, get_cached_session
 
 
 class BaseMarketDataProvider(ABC):
@@ -32,7 +34,11 @@ class BaseMarketDataProvider(ABC):
 
 class MarketDataProvider(BaseMarketDataProvider):
     def __init__(self):
-        self._cache: Dict[str, Any] = {}
+        # Actual caching is handled by the @ttl_cache decorators on the
+        # methods below (see app/core/cache.py). This provider is a
+        # singleton (see `market_data_provider` at the bottom of this file),
+        # so the decorator cache is effectively shared across all requests
+        # within a warm process.
         self._last_health_check = datetime.now(timezone.utc)
 
     def _normalize_symbol(self, symbol: str) -> str:
@@ -43,14 +49,16 @@ class MarketDataProvider(BaseMarketDataProvider):
 
     def _get_yf_symbol(self, symbol: str) -> str:
         s = symbol.strip().upper()
-        if s.startswith("^"):
+        if s.startswith("^") or s.endswith("=F") or s.endswith("=X"):
             return s
         if not (s.endswith(".NS") or s.endswith(".BO")):
             return f"{s}.NS"
         return s
 
+    @ttl_cache(ttl_seconds=120)
     def get_indices(self) -> List[IndexQuote]:
         results = []
+        sess = get_cached_session()
         for idx in INDIAN_INDICES:
             yf_sym = idx["symbol"]
             try:
@@ -71,15 +79,18 @@ class MarketDataProvider(BaseMarketDataProvider):
                     previous_close=round(prev, 2)
                 ))
             except Exception:
-                results.append(IndexQuote(**idx))
+                # Do not surface a curated index value as if it were current.
+                continue
         return results
 
+    @ttl_cache(ttl_seconds=300)
     def get_quote(self, symbol: str) -> Optional[StockQuote]:
         norm = self._normalize_symbol(symbol)
         ref_data = INDIAN_STOCKS_DATA.get(norm)
         yf_sym = self._get_yf_symbol(symbol)
+        sess = get_cached_session()
 
-        # 1. Attempt live quote from yfinance
+        # 1. Attempt live quote from yfinance with cached session
         try:
             ticker = yf.Ticker(yf_sym)
             info = ticker.fast_info
@@ -103,7 +114,7 @@ class MarketDataProvider(BaseMarketDataProvider):
                     desc = ref_data["description"]
                     mcap = ref_data["fundamentals"]["market_cap"]
                 else:
-                    # Dynamically look up full info for unknown tickers (e.g. any arbitrary NSE ticker)
+                    # Dynamically look up full info for unknown tickers
                     try:
                         full_info = ticker.info
                         if full_info:
@@ -113,7 +124,7 @@ class MarketDataProvider(BaseMarketDataProvider):
                             desc = full_info.get("longBusinessSummary") or desc
                             raw_mcap = full_info.get("marketCap")
                             if raw_mcap:
-                                mcap = round(raw_mcap / 10000000.0, 2)  # Convert INR to Crores
+                                mcap = round(raw_mcap / 10000000.0, 2)
                     except Exception:
                         pass
 
@@ -136,37 +147,40 @@ class MarketDataProvider(BaseMarketDataProvider):
                     market_cap=mcap,
                     description=desc,
                     data_source="NSE / BSE (Real-time & Delayed 15m)",
-                    as_of=now_str
+                    as_of=now_str,
+                    data_status="LIVE_PROVIDER_QUOTE",
+                    source_url=f"https://finance.yahoo.com/quote/{yf_sym}/",
                 )
         except Exception:
             pass
 
-        # 2. Resilient fallback to verified institutional reference data if offline
-        if ref_data:
-            return StockQuote(
-                symbol=ref_data["symbol"],
-                company_name=ref_data["company_name"],
-                sector=ref_data["sector"],
-                industry=ref_data["industry"],
-                current_price=ref_data["current_price"],
-                change_1d=ref_data["change_1d"],
-                change_1d_pct=ref_data["change_1d_pct"],
-                open_price=ref_data["open_price"],
-                high_price=ref_data["high_price"],
-                low_price=ref_data["low_price"],
-                previous_close=ref_data["previous_close"],
-                volume=ref_data["volume"],
-                week_52_high=ref_data["week_52_high"],
-                week_52_low=ref_data["week_52_low"],
-                market_cap=ref_data["fundamentals"]["market_cap"],
-                description=ref_data["description"],
-                data_source="NEXUS Verified Institutional Reference Data",
-                as_of=ref_data["fundamentals"].get("as_of_date", "Q1 FY26")
-            )
-
-        # 3. If completely unknown and provider failed, do NOT fabricate data
+        # No hardcoded quote fallback: callers must show Data unavailable.
         return None
 
+    def get_batch_quotes(self, symbols: List[str]) -> Dict[str, StockQuote]:
+        """
+        Fetch quotes for multiple symbols concurrently using ThreadPoolExecutor.
+        Leverages in-memory TTLCache and session HTTP cache so repeated/warm symbols
+        return instantaneously without network round-trips.
+        """
+        results: Dict[str, StockQuote] = {}
+        if not symbols:
+            return results
+
+        # Run multi-symbol retrieval across up to 10 concurrent threads
+        with ThreadPoolExecutor(max_workers=min(12, len(symbols))) as executor:
+            future_to_sym = {executor.submit(self.get_quote, sym): sym for sym in symbols}
+            for future in future_to_sym:
+                sym = future_to_sym[future]
+                try:
+                    quote = future.result()
+                    if quote:
+                        results[quote.symbol] = quote
+                except Exception:
+                    pass
+        return results
+
+    @ttl_cache(ttl_seconds=300)
     def get_historical_candles(self, symbol: str, timeframe: str = "1M") -> List[HistoricalCandle]:
         """
         Fetch real historical OHLCV data formatted for TradingView Lightweight Charts.
@@ -180,6 +194,7 @@ class MarketDataProvider(BaseMarketDataProvider):
         inter = interval_map.get(timeframe.upper(), "1d")
 
         try:
+            sess = get_cached_session()
             df = yf.download(yf_sym, period=p, interval=inter, progress=False)
             if df is not None and not df.empty and len(df) >= 2:
                 candles = []
@@ -212,6 +227,7 @@ class MarketDataProvider(BaseMarketDataProvider):
         # If external provider is unreachable, return empty array rather than fabricating numbers
         return []
 
+    @ttl_cache(ttl_seconds=300)
     def search_stocks(self, query: str) -> List[StockQuote]:
         """
         Universal search across the ENTIRE NSE/BSE universe (5,000+ equities).
@@ -234,6 +250,7 @@ class MarketDataProvider(BaseMarketDataProvider):
 
         # 1. yfinance full-universe search — covers ALL NSE/BSE listed companies
         try:
+            sess = get_cached_session()
             search = yf.Search(q, max_results=20, news_count=0)
             quotes_raw = search.quotes if hasattr(search, "quotes") and search.quotes else []
             for item in quotes_raw:

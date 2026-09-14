@@ -42,16 +42,19 @@ export const AiStudioView: React.FC<AiStudioViewProps> = ({
   const [symbol, setSymbol] = useState<string>(initialSymbol);
   const [agentResult, setAgentResult] = useState<AgentRunResponse | null>(null);
   const [isResearching, setIsResearching] = useState<boolean>(false);
+  const [researchError, setResearchError] = useState<string | null>(null);
   const [showObservability, setShowObservability] = useState<boolean>(false);
 
   // Why Moved State
   const [whySymbol, setWhySymbol] = useState<string>("TCS");
   const [whyResult, setWhyResult] = useState<WhyMovedResponse | null>(null);
   const [isWhyLoading, setIsWhyLoading] = useState<boolean>(false);
+  const [whyError, setWhyError] = useState<string | null>(null);
 
   // Portfolio Doctor State
   const [doctorResult, setDoctorResult] = useState<PortfolioDoctorResponse | null>(null);
   const [isDoctorLoading, setIsDoctorLoading] = useState<boolean>(false);
+  const [doctorError, setDoctorError] = useState<string | null>(null);
 
   // Auto-run research if initialQuery provided
   useEffect(() => {
@@ -61,11 +64,15 @@ export const AiStudioView: React.FC<AiStudioViewProps> = ({
   const handleRunResearch = async () => {
     if (!query.trim()) return;
     setIsResearching(true);
+    setResearchError(null);
     try {
       const res = await api.runAiResearch(query, symbol);
       setAgentResult(res);
     } catch (err) {
       console.error("AI Research error:", err);
+      setResearchError(
+        "Could not reach the NEXUS AI research agent. This does not affect the rest of the platform — retry below."
+      );
     } finally {
       setIsResearching(false);
     }
@@ -74,11 +81,13 @@ export const AiStudioView: React.FC<AiStudioViewProps> = ({
   const handleRunWhyMoved = async (sym: string) => {
     setWhySymbol(sym);
     setIsWhyLoading(true);
+    setWhyError(null);
     try {
       const res = await api.getWhyMoved(sym);
       setWhyResult(res);
     } catch (err) {
       console.error("Why Moved error:", err);
+      setWhyError("Could not reach the NEXUS AI attribution service. Retry below.");
     } finally {
       setIsWhyLoading(false);
     }
@@ -86,11 +95,13 @@ export const AiStudioView: React.FC<AiStudioViewProps> = ({
 
   const handleRunDoctor = async () => {
     setIsDoctorLoading(true);
+    setDoctorError(null);
     try {
       const res = await api.getPortfolioDoctor();
       setDoctorResult(res);
     } catch (err) {
       console.error("Doctor error:", err);
+      setDoctorError("Could not reach the NEXUS Portfolio Doctor agent. Retry below.");
     } finally {
       setIsDoctorLoading(false);
     }
@@ -222,6 +233,18 @@ export const AiStudioView: React.FC<AiStudioViewProps> = ({
               </button>
             </div>
           </div>
+
+          {researchError && (
+            <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center justify-between gap-4">
+              <span>{researchError}</span>
+              <button
+                onClick={handleRunResearch}
+                className="shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-medium bg-rose-500/15 border border-rose-500/30 text-rose-200 hover:bg-rose-500/25 transition-colors"
+              >
+                Retry
+              </button>
+            </div>
+          )}
 
           {/* Agent Results Card */}
           {agentResult && (
@@ -409,6 +432,18 @@ export const AiStudioView: React.FC<AiStudioViewProps> = ({
             )}
           </div>
 
+          {whyError && (
+            <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center justify-between gap-4">
+              <span>{whyError}</span>
+              <button
+                onClick={() => handleRunWhyMoved(whySymbol)}
+                className="shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-medium bg-rose-500/15 border border-rose-500/30 text-rose-200 hover:bg-rose-500/25 transition-colors"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
           {whyResult && (
             <div className="p-5 rounded-2xl glass-card space-y-4">
               <div className="flex items-center justify-between pb-4 border-b border-white/[0.05]">
@@ -492,6 +527,18 @@ export const AiStudioView: React.FC<AiStudioViewProps> = ({
               <span>{isDoctorLoading ? "Diagnosing..." : "Run Diagnosis"}</span>
             </button>
           </div>
+
+          {doctorError && (
+            <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center justify-between gap-4">
+              <span>{doctorError}</span>
+              <button
+                onClick={handleRunDoctor}
+                className="shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-medium bg-rose-500/15 border border-rose-500/30 text-rose-200 hover:bg-rose-500/25 transition-colors"
+              >
+                Retry
+              </button>
+            </div>
+          )}
 
           {doctorResult && (
             <div className="p-5 rounded-2xl glass-card space-y-4">

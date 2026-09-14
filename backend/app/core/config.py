@@ -26,6 +26,17 @@ class Settings(BaseSettings):
     # LLM APIs (Optional: Platform works reliably with deterministic fallback if absent)
     OPENAI_API_KEY: Optional[str] = None
     GEMINI_API_KEY: Optional[str] = None
+
+    # Broker read-only adapters (disabled until credentials and consent are configured)
+    ZERODHA_API_KEY: Optional[str] = None
+    ZERODHA_API_SECRET: Optional[str] = None
+    ZERODHA_CONSENT_RECORDED: Optional[str] = None
+    ANGEL_ONE_API_KEY: Optional[str] = None
+    ANGEL_ONE_API_SECRET: Optional[str] = None
+    ANGEL_ONE_CONSENT_RECORDED: Optional[str] = None
+    GROWW_API_KEY: Optional[str] = None
+    GROWW_API_SECRET: Optional[str] = None
+    GROWW_CONSENT_RECORDED: Optional[str] = None
     
     # CORS
     BACKEND_CORS_ORIGINS: List[str] = [

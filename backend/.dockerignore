@@ -1,0 +1,16 @@
+.pytest_cache
+__pycache__
+*.pyc
+*.pyo
+*.db
+.env
+venv
+.venv
+tests__pycache__/
+*.pyc
+*.pyd
+.pytest_cache/
+.env
+nexus.db
+tests/
+.git

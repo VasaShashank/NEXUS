@@ -5,6 +5,7 @@ and provides OpenAPI documentation.
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import inspect, text
 from app.core.config import settings
 from app.database.session import engine, Base
 from app.database.base import *  # Ensure all models are registered
@@ -19,6 +20,8 @@ from app.api.watchlists import router as watchlists_router
 from app.api.tax import router as tax_router
 from app.api.backtest import router as backtest_router
 from app.api.health import router as health_router
+from app.api.brokers import router as brokers_router
+from app.api.alerts import router as alerts_router
 
 from contextlib import asynccontextmanager
 
@@ -26,6 +29,11 @@ from contextlib import asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: create tables and seed default user
     Base.metadata.create_all(bind=engine)
+    if settings.DATABASE_URL.startswith("sqlite"):
+        columns = {column["name"] for column in inspect(engine).get_columns("transactions")}
+        if "idempotency_key" not in columns:
+            with engine.begin() as connection:
+                connection.execute(text("ALTER TABLE transactions ADD COLUMN idempotency_key VARCHAR"))
     from app.database.session import SessionLocal
     from app.models.user import User
     from app.core.security import get_password_hash
@@ -45,7 +53,20 @@ async def lifespan(app: FastAPI):
             db.commit()
     finally:
         db.close()
+
+    from app.core.preheat import preheat_worker
+    from app.services.data_staleness_scheduler import staleness_scheduler
+    from app.services.portfolio_mark_scheduler import portfolio_mark_scheduler
+
+    preheat_worker.start()
+    staleness_scheduler.start()
+    portfolio_mark_scheduler.start()
+
     yield
+
+    portfolio_mark_scheduler.stop()
+    staleness_scheduler.stop()
+    preheat_worker.stop()
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -77,7 +98,9 @@ app.include_router(multi_asset_router, prefix=api_v1)
 app.include_router(watchlists_router, prefix=api_v1)
 app.include_router(tax_router, prefix=api_v1)
 app.include_router(backtest_router, prefix=api_v1)
+app.include_router(alerts_router, prefix=api_v1)
 app.include_router(health_router)
+app.include_router(brokers_router, prefix=api_v1)
 
 
 @app.get("/")

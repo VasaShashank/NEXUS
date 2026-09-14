@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Filter, ArrowUpDown, Search, Sparkles, Check, ChevronRight, HelpCircle } from "lucide-react";
+import { Filter, ArrowUpDown, Search, Sparkles, Check, ChevronRight, HelpCircle, WandSparkles } from "lucide-react";
 import { api } from "@/lib/api";
 import { InfoTooltip } from "@/components/common/InfoTooltip";
 
@@ -12,40 +12,140 @@ interface ScreenerViewProps {
 export const ScreenerView: React.FC<ScreenerViewProps> = ({ onSelectStock }) => {
   const [results, setResults] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [screenError, setScreenError] = useState<string | null>(null);
 
   // Filter States
   const [minMcap, setMinMcap] = useState<string>("");
   const [maxPe, setMaxPe] = useState<string>("");
   const [minRoe, setMinRoe] = useState<string>("");
   const [maxDebtEquity, setMaxDebtEquity] = useState<string>("");
+  const [minRoce, setMinRoce] = useState<string>("");
+  const [minRevenueGrowth, setMinRevenueGrowth] = useState<string>("");
+  const [minProfitGrowth, setMinProfitGrowth] = useState<string>("");
+  const [minOperatingMargin, setMinOperatingMargin] = useState<string>("");
+  const [maxDistanceHigh, setMaxDistanceHigh] = useState<string>("");
+  const [minDistanceLow, setMinDistanceLow] = useState<string>("");
+  const [minVolume, setMinVolume] = useState<string>("");
   const [minRsi, setMinRsi] = useState<string>("");
   const [maxRsi, setMaxRsi] = useState<string>("");
   const [sector, setSector] = useState<string>("");
+  const [naturalQuery, setNaturalQuery] = useState<string>("");
+  const [parsedConditions, setParsedConditions] = useState<string[]>([]);
+  const [sortBy, setSortBy] = useState<string>("market_cap");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [lastRefreshed, setLastRefreshed] = useState<string | null>(null);
+  const [savedScreens, setSavedScreens] = useState<Array<{ name: string; filters: Record<string, any> }>>([]);
+
+  const buildFilters = (): Record<string, any> => {
+    const filters: Record<string, any> = { sort_by: sortBy, sort_dir: sortDir };
+    if (minMcap) filters.min_market_cap = parseFloat(minMcap);
+    if (maxPe) filters.max_pe = parseFloat(maxPe);
+    if (minRoe) filters.min_roe = parseFloat(minRoe);
+    if (minRoce) filters.min_roce = parseFloat(minRoce);
+    if (minRevenueGrowth) filters.min_revenue_growth = parseFloat(minRevenueGrowth);
+    if (minProfitGrowth) filters.min_profit_growth = parseFloat(minProfitGrowth);
+    if (minOperatingMargin) filters.min_operating_margin = parseFloat(minOperatingMargin);
+    if (maxDistanceHigh) filters.max_distance_from_52w_high = parseFloat(maxDistanceHigh);
+    if (minDistanceLow) filters.min_distance_from_52w_low = parseFloat(minDistanceLow);
+    if (minVolume) filters.min_volume = parseFloat(minVolume);
+    if (maxDebtEquity) filters.max_debt_equity = parseFloat(maxDebtEquity);
+    if (minRsi) filters.min_rsi = parseFloat(minRsi);
+    if (maxRsi) filters.max_rsi = parseFloat(maxRsi);
+    if (sector) filters.sector = sector;
+    return filters;
+  };
 
   const runScreen = async () => {
     setIsLoading(true);
+    setScreenError(null);
     try {
-      const filters: Record<string, any> = {};
-      if (minMcap) filters.min_market_cap = parseFloat(minMcap);
-      if (maxPe) filters.max_pe = parseFloat(maxPe);
-      if (minRoe) filters.min_roe = parseFloat(minRoe);
-      if (maxDebtEquity) filters.max_debt_equity = parseFloat(maxDebtEquity);
-      if (minRsi) filters.min_rsi = parseFloat(minRsi);
-      if (maxRsi) filters.max_rsi = parseFloat(maxRsi);
-      if (sector) filters.sector = sector;
-
-      const data = await api.runScreener(filters);
+      const data = await api.runScreener(buildFilters());
       setResults(data);
+      setLastRefreshed(new Date().toLocaleTimeString());
     } catch (err) {
       console.error("Screener failed:", err);
+      setScreenError("Could not reach the NEXUS screener service. Retry below.");
     } finally {
       setIsLoading(false);
     }
   };
 
+  const parseNaturalQuery = async () => {
+    if (!naturalQuery.trim()) return;
+    try {
+      const parsed = await api.parseScreenerQuery(naturalQuery);
+      const filters = parsed.filters;
+      if (filters.min_roe !== undefined) setMinRoe(String(filters.min_roe));
+      if (filters.min_roce !== undefined) setMinRoce(String(filters.min_roce));
+      if (filters.max_pe !== undefined) setMaxPe(String(filters.max_pe));
+      if (filters.max_debt_equity !== undefined) setMaxDebtEquity(String(filters.max_debt_equity));
+      if (filters.min_revenue_growth !== undefined) setMinRevenueGrowth(String(filters.min_revenue_growth));
+      if (filters.min_profit_growth !== undefined) setMinProfitGrowth(String(filters.min_profit_growth));
+      if (filters.min_operating_margin !== undefined) setMinOperatingMargin(String(filters.min_operating_margin));
+      if (filters.sector !== undefined) setSector(String(filters.sector));
+      setParsedConditions(parsed.matched_conditions);
+      window.setTimeout(runScreen, 0);
+    } catch (err) {
+      console.warn("Screener query parsing failed:", err);
+    }
+  };
+
   useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem("nexus-saved-screens");
+      if (stored) setSavedScreens(JSON.parse(stored));
+    } catch {
+      setSavedScreens([]);
+    }
     runScreen();
   }, []);
+
+  const loadSavedScreen = (screen: { name: string; filters: Record<string, any> }) => {
+    const filters = screen.filters;
+    setMinMcap(filters.min_market_cap ? String(filters.min_market_cap) : "");
+    setMaxPe(filters.max_pe ? String(filters.max_pe) : "");
+    setMinRoe(filters.min_roe ? String(filters.min_roe) : "");
+    setMinRoce(filters.min_roce ? String(filters.min_roce) : "");
+    setMinRevenueGrowth(filters.min_revenue_growth ? String(filters.min_revenue_growth) : "");
+    setMinProfitGrowth(filters.min_profit_growth ? String(filters.min_profit_growth) : "");
+    setMaxDebtEquity(filters.max_debt_equity ? String(filters.max_debt_equity) : "");
+    setMaxDistanceHigh(filters.max_distance_from_52w_high !== undefined ? String(filters.max_distance_from_52w_high) : "");
+    setMinDistanceLow(filters.min_distance_from_52w_low !== undefined ? String(filters.min_distance_from_52w_low) : "");
+    setMinVolume(filters.min_volume !== undefined ? String(filters.min_volume) : "");
+    setMinRsi(filters.min_rsi ? String(filters.min_rsi) : "");
+    setMaxRsi(filters.max_rsi ? String(filters.max_rsi) : "");
+    setSector(filters.sector || "");
+    setSortBy(filters.sort_by || "market_cap");
+    setSortDir(filters.sort_dir || "desc");
+    window.setTimeout(runScreen, 0);
+  };
+
+  const saveCurrentScreen = () => {
+    const name = window.prompt("Name this screen");
+    if (!name?.trim()) return;
+    const next = [...savedScreens.filter((screen) => screen.name !== name.trim()), { name: name.trim(), filters: buildFilters() }];
+    setSavedScreens(next);
+    window.localStorage.setItem("nexus-saved-screens", JSON.stringify(next));
+  };
+
+  const deleteSavedScreen = (name: string) => {
+    const next = savedScreens.filter((screen) => screen.name !== name);
+    setSavedScreens(next);
+    window.localStorage.setItem("nexus-saved-screens", JSON.stringify(next));
+  };
+
+  const exportResults = () => {
+    if (!results.length) return;
+    const columns = ["symbol", "company_name", "sector", "current_price", "market_cap", "pe_ratio", "roe", "roce", "revenue_growth_yoy", "profit_growth_yoy", "debt_to_equity"];
+    const csv = [columns.join(","), ...results.map((row) => columns.map((column) => JSON.stringify(row[column] ?? "")).join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "nexus-screen-results.csv";
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
 
   const applyPreset = (preset: "quality" | "low_debt" | "oversold") => {
     if (preset === "quality") {
@@ -140,6 +240,28 @@ export const ScreenerView: React.FC<ScreenerViewProps> = ({ onSelectStock }) => 
         </div>
       </div>
 
+      <div className="p-4 rounded-2xl glass-card space-y-3">
+        <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+          <WandSparkles className="w-4 h-4 text-accent-cyan" />
+          <span>Describe a screen</span>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input
+            value={naturalQuery}
+            onChange={(event) => setNaturalQuery(event.target.value)}
+            onKeyDown={(event) => { if (event.key === "Enter") parseNaturalQuery(); }}
+            placeholder="ROE above 20, PE below 25, debt below 0.5"
+            className="flex-1 px-3 py-2 text-[13px] rounded-xl glass-input text-foreground placeholder-slate-600 focus:outline-none focus:border-accent-cyan/50"
+          />
+          <button onClick={parseNaturalQuery} className="px-4 py-2 rounded-xl bg-accent-cyan/15 border border-accent-cyan/30 text-accent-cyan text-xs font-semibold">
+            Parse & apply
+          </button>
+        </div>
+        {parsedConditions.length > 0 && (
+          <p className="text-[11px] text-slate-400">Applied: {parsedConditions.join(" · ")}</p>
+        )}
+      </div>
+
       {/* Filter Parameters Bar */}
       <div className="p-5 rounded-2xl glass-card space-y-4">
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -161,6 +283,36 @@ export const ScreenerView: React.FC<ScreenerViewProps> = ({ onSelectStock }) => 
               onChange={(e) => setMinMcap(e.target.value)}
               className="w-full px-3 py-2 text-[13px] rounded-xl glass-input text-foreground placeholder-slate-600 focus:outline-none focus:border-accent-cyan/50"
             />
+          </div>
+
+          <div>
+            <label className="text-[11px] text-slate-400 font-semibold tracking-wide">Min ROCE (%)</label>
+            <input type="number" placeholder="e.g. 15" value={minRoce} onChange={(e) => setMinRoce(e.target.value)} className="w-full mt-1.5 px-3 py-2 text-[13px] rounded-xl glass-input text-foreground placeholder-slate-600 focus:outline-none focus:border-accent-cyan/50" />
+          </div>
+
+          <div>
+            <label className="text-[11px] text-slate-400 font-semibold tracking-wide">Min Sales Growth (%)</label>
+            <input type="number" placeholder="e.g. 10" value={minRevenueGrowth} onChange={(e) => setMinRevenueGrowth(e.target.value)} className="w-full mt-1.5 px-3 py-2 text-[13px] rounded-xl glass-input text-foreground placeholder-slate-600 focus:outline-none focus:border-accent-cyan/50" />
+          </div>
+
+          <div>
+            <label className="text-[11px] text-slate-400 font-semibold tracking-wide">Min Profit Growth (%)</label>
+            <input type="number" placeholder="e.g. 10" value={minProfitGrowth} onChange={(e) => setMinProfitGrowth(e.target.value)} className="w-full mt-1.5 px-3 py-2 text-[13px] rounded-xl glass-input text-foreground placeholder-slate-600 focus:outline-none focus:border-accent-cyan/50" />
+          </div>
+
+          <div>
+            <label className="text-[11px] text-slate-400 font-semibold tracking-wide">Max from 52W High (%)</label>
+            <input type="number" placeholder="e.g. -10" value={maxDistanceHigh} onChange={(e) => setMaxDistanceHigh(e.target.value)} className="w-full mt-1.5 px-3 py-2 text-[13px] rounded-xl glass-input text-foreground placeholder-slate-600 focus:outline-none focus:border-accent-cyan/50" />
+          </div>
+
+          <div>
+            <label className="text-[11px] text-slate-400 font-semibold tracking-wide">Min above 52W Low (%)</label>
+            <input type="number" placeholder="e.g. 20" value={minDistanceLow} onChange={(e) => setMinDistanceLow(e.target.value)} className="w-full mt-1.5 px-3 py-2 text-[13px] rounded-xl glass-input text-foreground placeholder-slate-600 focus:outline-none focus:border-accent-cyan/50" />
+          </div>
+
+          <div>
+            <label className="text-[11px] text-slate-400 font-semibold tracking-wide">Min Volume</label>
+            <input type="number" placeholder="e.g. 100000" value={minVolume} onChange={(e) => setMinVolume(e.target.value)} className="w-full mt-1.5 px-3 py-2 text-[13px] rounded-xl glass-input text-foreground placeholder-slate-600 focus:outline-none focus:border-accent-cyan/50" />
           </div>
 
           <div>
@@ -266,6 +418,30 @@ export const ScreenerView: React.FC<ScreenerViewProps> = ({ onSelectStock }) => 
               Click any stock row to open deep research
             </span>
           </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <select value={sortBy} onChange={(event) => setSortBy(event.target.value)} className="px-2 py-1.5 rounded-lg glass-input text-[11px] text-foreground">
+              <option value="market_cap">Sort: Market cap</option>
+              <option value="pe_ratio">Sort: P/E</option>
+              <option value="roe">Sort: ROE</option>
+              <option value="revenue_growth_yoy">Sort: Sales growth</option>
+              <option value="change_1d_pct">Sort: Daily change</option>
+            </select>
+            <button onClick={() => setSortDir(sortDir === "desc" ? "asc" : "desc")} className="px-2 py-1.5 rounded-lg glass-pill text-[11px] text-slate-300" title="Toggle sort direction">
+              {sortDir === "desc" ? "High to low" : "Low to high"}
+            </button>
+            <button onClick={saveCurrentScreen} className="px-2 py-1.5 rounded-lg glass-pill text-[11px] text-slate-300">Save screen</button>
+            <button onClick={exportResults} className="px-2 py-1.5 rounded-lg glass-pill text-[11px] text-slate-300">Export CSV</button>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          <span className="text-[11px] text-slate-500">Saved:</span>
+          {savedScreens.map((screen) => (
+            <span key={screen.name} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-white/[0.04] text-[11px] text-slate-300">
+              <button onClick={() => loadSavedScreen(screen)}>{screen.name}</button>
+              <button onClick={() => deleteSavedScreen(screen.name)} className="text-slate-500 hover:text-rose-300" aria-label={`Delete ${screen.name}`}>×</button>
+            </span>
+          ))}
+          {lastRefreshed && <span className="ml-auto text-[11px] text-slate-500">Updated {lastRefreshed}</span>}
         </div>
 
         {isLoading ? (
@@ -273,6 +449,16 @@ export const ScreenerView: React.FC<ScreenerViewProps> = ({ onSelectStock }) => 
             {[1, 2, 3, 4, 5].map((i) => (
               <div key={i} className="h-12 rounded-xl skeleton animate-pulse" />
             ))}
+          </div>
+        ) : screenError ? (
+          <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center justify-between gap-4">
+            <span>{screenError}</span>
+            <button
+              onClick={runScreen}
+              className="shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-medium bg-rose-500/15 border border-rose-500/30 text-rose-200 hover:bg-rose-500/25 transition-colors"
+            >
+              Retry
+            </button>
           </div>
         ) : results.length === 0 ? (
           <div className="text-center py-12 text-slate-400 space-y-2">

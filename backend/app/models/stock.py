@@ -114,3 +114,18 @@ class SavedScreen(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", back_populates="saved_screens")
+
+
+class Alert(Base):
+    __tablename__ = "alerts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    symbol = Column(String, nullable=False, index=True)
+    condition = Column(String, nullable=False)  # ABOVE, BELOW, CHANGE_PCT_ABOVE, CHANGE_PCT_BELOW, 52W_HIGH, 52W_LOW
+    threshold = Column(Float, nullable=True)
+    active = Column(Boolean, default=True)
+    last_triggered_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    user = relationship("User", back_populates="alerts")

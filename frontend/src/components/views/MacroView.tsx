@@ -15,19 +15,23 @@ import { ComplianceDisclaimer } from "@/components/common/ComplianceDisclaimer";
 export const MacroView: React.FC = () => {
   const [indicators, setIndicators] = useState<MacroIndicatorItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadMacro = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await api.getMacroIndicators();
+      setIndicators(data);
+    } catch (err) {
+      console.warn("Failed to load macro data:", err);
+      setError("Could not reach the NEXUS macroeconomic data service. Retry below.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const loadMacro = async () => {
-      setLoading(true);
-      try {
-        const data = await api.getMacroIndicators();
-        setIndicators(data);
-      } catch (err) {
-        console.warn("Failed to load macro data:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
     loadMacro();
   }, []);
 
@@ -49,14 +53,28 @@ export const MacroView: React.FC = () => {
         </p>
       </div>
 
+      {error && (
+        <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center justify-between gap-4">
+          <span>{error}</span>
+          <button
+            onClick={loadMacro}
+            className="shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-medium bg-rose-500/15 border border-rose-500/30 text-rose-200 hover:bg-rose-500/25 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {loading && (
         <div className="p-12 text-center text-xs text-slate-400 animate-pulse">
           Loading official macroeconomic indicators...
         </div>
       )}
 
-      {!loading && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {!loading && !error && (
+        indicators.length === 0 ? (
+          <div className="p-10 text-center text-sm text-slate-400">Data unavailable: no verified live RBI/MOSPI/PMI macro feed is configured.</div>
+        ) : <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {indicators.map((ind) => (
             <div
               key={ind.id}
@@ -73,10 +91,19 @@ export const MacroView: React.FC = () => {
                 </div>
 
                 <h3 className="text-sm font-bold text-foreground mt-3">{ind.name}</h3>
-                <div className="mt-2 flex items-baseline space-x-2">
-                  <span className="text-3xl font-extrabold font-mono text-foreground">{ind.current_value}</span>
-                  <span className="text-xs text-slate-400 font-medium">{ind.unit}</span>
-                </div>
+                {ind.current_value !== null ? (
+                  <div className="mt-2 flex items-baseline space-x-2">
+                    <span className="text-3xl font-extrabold font-mono text-foreground">{ind.current_value}</span>
+                    <span className="text-xs text-slate-400 font-medium">{ind.unit}</span>
+                  </div>
+                ) : (
+                  <div className="mt-2 flex items-center space-x-2">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                      DATA_UNAVAILABLE
+                    </span>
+                    <span className="text-xs text-slate-400 font-medium">{ind.unit}</span>
+                  </div>
+                )}
                 <span className="text-[11px] text-slate-500 block mt-1">
                   Target / Range: {ind.target_band}
                 </span>
@@ -85,14 +112,14 @@ export const MacroView: React.FC = () => {
                 <div className="mt-4 pt-3 border-t border-white/[0.04] space-y-2">
                   <div className="flex justify-between text-[10px] text-slate-500">
                     <span>Recent Trajectory</span>
-                    <span>As of {ind.last_updated}</span>
+                    <span>As of {ind.last_updated ?? "unavailable"}</span>
                   </div>
                   <div className="grid grid-cols-6 gap-1.5 items-end h-12 bg-white/[0.02] p-1.5 rounded-lg">
                     {ind.historical_series.map((pt, idx) => (
                       <div key={idx} className="flex flex-col items-center justify-end h-full group relative">
                         <div
                           className="w-full rounded-sm bg-accent-cyan/40 group-hover:bg-accent-cyan transition-all"
-                          style={{ height: `${Math.min(100, (pt.value / (ind.current_value * 1.3)) * 100)}%` }}
+                          style={{ height: `${Math.min(100, ind.current_value ? (pt.value / (ind.current_value * 1.3)) * 100 : 0)}%` }}
                         />
                         <span className="text-[8px] text-slate-500 mt-1 truncate">{pt.period.split(" ")[0]}</span>
                       </div>

@@ -24,9 +24,11 @@ export const WatchlistView: React.FC<WatchlistViewProps> = ({ onSelectStock }) =
   const [newListName, setNewListName] = useState<string>("");
   const [newSymbol, setNewSymbol] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   const loadWatchlists = async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await api.getWatchlists();
       setWatchlists(data);
@@ -35,6 +37,7 @@ export const WatchlistView: React.FC<WatchlistViewProps> = ({ onSelectStock }) =
       }
     } catch (err) {
       console.warn("Failed to load watchlists:", err);
+      setError("Could not reach the NEXUS watchlist service. Retry below.");
     } finally {
       setLoading(false);
     }
@@ -116,13 +119,25 @@ export const WatchlistView: React.FC<WatchlistViewProps> = ({ onSelectStock }) =
         </div>
       </div>
 
+      {error && (
+        <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center justify-between gap-4">
+          <span>{error}</span>
+          <button
+            onClick={loadWatchlists}
+            className="shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-medium bg-rose-500/15 border border-rose-500/30 text-rose-200 hover:bg-rose-500/25 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {loading && (
         <div className="p-12 text-center text-xs text-slate-400 animate-pulse">
           Loading watchlists...
         </div>
       )}
 
-      {!loading && currentWl && (
+      {!loading && !error && currentWl && (
         <div className="space-y-4">
           {/* Watchlist Tabs */}
           <div className="flex items-center space-x-2 overflow-x-auto pb-1 border-b border-white/[0.06]">

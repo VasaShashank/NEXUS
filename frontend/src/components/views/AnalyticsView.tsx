@@ -22,21 +22,42 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onNavigate }) => {
   const [analytics, setAnalytics] = useState<PortfolioAnalyticsResponse | null>(null);
   const [risk, setRisk] = useState<PortfolioRiskResponse | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const fetchData = async () => {
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const [a, r] = await Promise.all([api.getAnalytics(), api.getRisk()]);
+      setAnalytics(a);
+      setRisk(r);
+    } catch (err) {
+      console.error("Failed to load analytics and risk data:", err);
+      setLoadError("Could not reach the NEXUS analytics service. Retry below.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [a, r] = await Promise.all([api.getAnalytics(), api.getRisk()]);
-        setAnalytics(a);
-        setRisk(r);
-      } catch (err) {
-        console.error("Failed to load analytics and risk data:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
     fetchData();
   }, []);
+
+  if (loadError && (!analytics || !risk)) {
+    return (
+      <div className="p-6 max-w-2xl mx-auto">
+        <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center justify-between gap-4">
+          <span>{loadError}</span>
+          <button
+            onClick={fetchData}
+            className="shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-medium bg-rose-500/15 border border-rose-500/30 text-rose-200 hover:bg-rose-500/25 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading || !analytics || !risk) {
     return (

@@ -17,19 +17,23 @@ import { ComplianceDisclaimer } from "@/components/common/ComplianceDisclaimer";
 export const TaxView: React.FC = () => {
   const [taxData, setTaxData] = useState<TaxSummaryResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadTax = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await api.getTaxSummary();
+      setTaxData(data);
+    } catch (err) {
+      console.error("Failed to load tax report", err);
+      setError("Could not reach the NEXUS tax analytics service. Retry below.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const loadTax = async () => {
-      setLoading(true);
-      try {
-        const data = await api.getTaxSummary();
-        setTaxData(data);
-      } catch (err) {
-        console.error("Failed to load tax report", err);
-      } finally {
-        setLoading(false);
-      }
-    };
     loadTax();
   }, []);
 
@@ -64,6 +68,18 @@ export const TaxView: React.FC = () => {
           <span>Download Tax Report (CSV)</span>
         </button>
       </div>
+
+      {error && (
+        <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center justify-between gap-4">
+          <span>{error}</span>
+          <button
+            onClick={loadTax}
+            className="shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-medium bg-rose-500/15 border border-rose-500/30 text-rose-200 hover:bg-rose-500/25 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {loading && (
         <div className="p-12 text-center text-xs text-slate-400 animate-pulse">

@@ -8,7 +8,7 @@
 ![Next.js](https://img.shields.io/badge/Next.js-14.2-black.svg?logo=next.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue.svg?logo=typescript)
 ![Lightweight Charts](https://img.shields.io/badge/Lightweight_Charts-v5.2.1-2962FF.svg)
-![Tests](https://img.shields.io/badge/pytest-13%2F13%20passed-success.svg)
+![Tests](https://img.shields.io/badge/pytest-40%2F40%20passed-success.svg)
 ![Market Focus](https://img.shields.io/badge/Market-NSE%20%7C%20BSE%20(India)-FF9933.svg)
 
 **An institutional-grade, AI-augmented research and simulation workstation covering Indian Equities, Mutual Funds, Sovereign & Corporate Bonds, ETFs, Commodities, FX, and Macroeconomic Indicators.**
@@ -86,7 +86,7 @@ NEXUS WORKSTATION
 | **1** | **Chart Indicators & Sub-Panes** | Lightweight Charts v5.2.1 canvas engine. SMA (20, 50, 200), EMA (9, 21, 50), VWAP, Bollinger Bands, Ichimoku Cloud overlays; toggleable sub-pane oscillators (RSI 14, MACD with histogram, Stochastic %K/%D, ADX 14). |
 | **2** | **Candlestick Pattern Intelligence** | Rule-based recognition engine for Doji, Hammer, Inverted Hammer, Shooting Star, Bullish/Bearish Engulfing, Morning/Evening Star, Harami, Marubozu, Three White Soldiers, Three Black Crows. Clickable markers with structural metrics & non-predictive observation notes. |
 | **3** | **Data Freshness & Indicators** | Real-time badge indicators (`Delayed 15m (NSE)` or `Market Closed - As of DD Mon HH:MM`) displayed on quotes, research views, and chart headers. |
-| **4** | **No Fabricated Numbers** | All synthetic random-walk / Brownian motion generators removed. Clear fallback to `"Data unavailable"` with provider telemetry. |
+| **4** | **No Fabricated Numbers** | All synthetic random-walk / Brownian motion generators removed. Clear fallback to `"Data unavailable"` with provider telemetry. Curated reference data (fundamentals, sovereign bonds, macro indicators) is always labeled (`REFERENCE_FUNDAMENTALS` / `REFERENCE_FIXTURE` / `DATA_UNAVAILABLE`) and never surfaced as live market data. |
 | **5** | **Comprehensive Stock Metrics** | Balance sheet fundamentals: P/E, P/B, EV/EBITDA, ROE, ROCE, Debt-to-Equity, FCF, Promoter Pledge %, FII/DII holding distributions, and quarterly institutional changes. |
 | **6** | **Stock Comparison Engine** | Side-by-side multi-stock comparison matrix with valuation rankings and normalized % return charts comparing up to 5 symbols over 1M/6M/1Y/5Y. |
 | **7** | **Universal Entity Search** | Dynamic symbol search across 5,000+ NSE/BSE listed equities, indices, and asset classes with real-time ticker discovery. |
@@ -111,6 +111,8 @@ NEXUS WORKSTATION
 | **26** | **AI Financial Tutor Mode** | Interactive guides for financial concepts (ROCE, P/E, Duration, Tracking Error, Beta, Sharpe) with formulas, real market examples, and checkpoint quizzes. |
 | **27** | **AI Observability & Fallbacks** | Offline-first architecture. Fully functional without external API keys; `AgentRunLog` tracks run execution telemetry. |
 | **28** | **Compliance, Disclaimers & Exports** | Persistent non-advisory regulatory disclaimers, formatted Lakh/Crore Indian currency formatters, CSV exports, and provider health telemetry. |
+| **29** | **Broker Adapter Health Observability** | `/api/v1/brokers/health` reports adapter status (paper vs external), read-only/live-execution flags, credential & consent state, reconciliation readiness, and rate-limit policy — surfaced in the Settings panel. External brokers stay disabled until credentials and consent are configured. |
+| **30** | **Provider Resilience & Provenance** | RBI macro indicators always return the full set (REPO_RATE, 10Y_GSEC, GDP_GROWTH, CPI_INFLATION) with explicit `DATA_UNAVAILABLE` + reason when a source is down; sovereign bonds fall back to labeled G-Sec reference fixtures when the 10Y yield anchor is unreachable; news source normalization and fundamentals merge preserve data integrity under Yahoo rate-limit/partial responses. |
 
 ---
 
@@ -132,7 +134,7 @@ Backend:
   - Security: JWT Authentication with passlib bcrypt hashing
   - Data Processing: Pandas, NumPy
   - Market Data: yfinance with resilient caching and curated verified Indian market reference data
-  - Testing: Pytest (13 comprehensive automated test suites)
+  - Testing: Pytest (40 tests across test_all, test_caching_and_forecast, test_provider_contracts)
 ```
 
 ---
@@ -179,9 +181,9 @@ Backend:
 
 5. **Run the automated backend test suite**:
    ```bash
-   python -m pytest tests/test_all.py -v
+   python -m pytest tests/ -q
    ```
-   *Expected output: All 13 tests passing.*
+   *Expected output: All 40 tests passing (test_all, test_caching_and_forecast, test_provider_contracts).*
 
 ---
 
@@ -209,6 +211,23 @@ Backend:
 
 5. **Open the platform**:
    - Access the web interface at: [http://localhost:3000](http://localhost:3000) (or configured port)
+
+---
+
+### Docker Deployment (Recommended)
+
+The whole stack ships as Docker images (non-root runtime users) with wiring already in place:
+
+```bash
+docker compose up --build -d
+```
+
+- **Frontend**: [http://localhost:3000](http://localhost:3000)
+- **Backend API docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- The SQLite database is persisted in the `nexus_db` volume and survives restarts.
+- Optional Postgres backend: `docker compose --profile postgres up`
+
+Both containers include healthchecks and restart policies. Set `OPENAI_API_KEY` / `GEMINI_API_KEY` / `SECRET_KEY` as environment variables (or `.env`) — the platform remains fully functional offline without them.
 
 ---
 

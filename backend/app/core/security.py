@@ -3,7 +3,7 @@ Security and JWT authentication utilities.
 """
 from datetime import datetime, timedelta, timezone
 from typing import Any, Union, Optional
-import jwt
+from jose import jwt
 from passlib.context import CryptContext
 from app.core.config import settings
 

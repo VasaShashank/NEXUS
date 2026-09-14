@@ -1,0 +1,79 @@
+# NEXUS — local / self-hosted stack.
+#
+# Usage:
+#   docker compose up --build
+#   Frontend: http://localhost:3000
+#   Backend:  http://localhost:8000/docs
+#
+# This does NOT replace Vercel for the frontend — Vercel is still a fine,
+# fast choice for the Next.js app. This exists so the FastAPI backend can
+# run as a normal long-lived process instead of a cold-starting serverless
+# function, which is what actually fixes "takes too long to load data"
+# (see DEPLOYMENT_DECISIONS.md for the full reasoning).
+
+services:
+  backend:
+    image: nexus-backend:local
+    build:
+      context: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      # Swap this for a real Postgres URL in production — SQLite here is
+      # fine for local dev but the /data volume below is what makes it
+      # survive container restarts (unlike Vercel's ephemeral /tmp).
+      DATABASE_URL: sqlite:////data/nexus.db
+      # Uncomment once you run `docker compose --profile postgres up`:
+      # DATABASE_URL: postgresql://nexus:nexus@postgres:5432/nexus
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    volumes:
+      - nexus_db:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    image: nexus-frontend:local
+    build:
+      context: ./frontend
+      args:
+        # Browser-facing URL — must be resolvable from the user's browser,
+        # not just from inside the Docker network, since Next.js inlines
+        # this at build time into the client bundle.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "--quiet", "http://localhost:3000"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # Optional: run `docker compose --profile postgres up` to include this
+  # instead of pointing DATABASE_URL at SQLite. Free managed alternatives
+  # (Neon, Supabase) work too and need zero docker-compose changes — just
+  # set DATABASE_URL as an env var wherever the backend actually runs.
+  postgres:
+    image: postgres:16-alpine
+    profiles: ["postgres"]
+    environment:
+      POSTGRES_USER: nexus
+      POSTGRES_PASSWORD: nexus
+      POSTGRES_DB: nexus
+    volumes:
+      - nexus_postgres:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+volumes:
+  nexus_db:
+  nexus_postgres:

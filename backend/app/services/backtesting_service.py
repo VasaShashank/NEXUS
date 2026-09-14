@@ -197,6 +197,8 @@ class BacktestService:
             "symbol": symbol,
             "error": reason,
             "in_sample_results": None,
+            "in_sample": None,
             "out_of_sample_results": None,
+            "out_of_sample": None,
             "disclaimer": "Historical simulation under specified assumptions."
         }

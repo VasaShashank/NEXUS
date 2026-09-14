@@ -15,8 +15,18 @@ class WhyMovedAgent:
         norm = symbol.upper().split(".")[0]
         quote = market_data_provider.get_quote(norm)
         if not quote:
-            norm = "RELIANCE"
-            quote = market_data_provider.get_quote(norm)
+            return WhyMovedResponse(
+                symbol=norm,
+                company_name="Data unavailable",
+                change_1d_pct=0.0,
+                volume_surge_ratio=0.0,
+                sector_change_pct=0.0,
+                market_change_pct=0.0,
+                observed_factors=[],
+                interpretation="Data unavailable: the market provider did not return a current quote for this symbol.",
+                confidence_rating="LOW",
+                data_points={},
+            )
 
         chg = quote.change_1d_pct
         vol = quote.volume
@@ -31,7 +41,7 @@ class WhyMovedAgent:
                 sec_change = s["average_change_pct"]
                 break
 
-        nifty_change = 0.52
+        nifty_change = 0.0
         for idx in overview.indices:
             if "NIFTY 50" in idx.name:
                 nifty_change = idx.change_1d_pct

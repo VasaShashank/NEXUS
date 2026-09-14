@@ -20,6 +20,14 @@ from app.schemas.stock import (
 )
 from app.services.market_service import MarketService
 from app.providers.market_data import market_data_provider
+from app.providers.multi_asset_data import ETFS_DATA
+from app.providers.amfi_provider import amfi_provider
+from app.providers.rbi_provider import rbi_provider
+from app.schemas.forecast import TrendForecastResponse
+from app.services.forecast_service import TrendForecastService
+from app.services.library_capabilities import get_library_capabilities
+from app.services.screen_parser import parse_screen_query
+from app.services.stock_score_service import build_stock_score
 
 router = APIRouter(prefix="/stocks", tags=["Stock Research & Analytics"])
 
@@ -28,6 +36,12 @@ router = APIRouter(prefix="/stocks", tags=["Stock Research & Analytics"])
 def get_market_data_health():
     """Check health and connectivity status of market data feeds."""
     return market_data_provider.get_health_status()
+
+
+@router.get("/capabilities", response_model=List[Dict[str, Any]])
+def get_finance_library_capabilities():
+    """Report installed finance libraries and whether NEXUS actively uses them."""
+    return get_library_capabilities()
 
 
 @router.get("/search", response_model=List[StockQuote])
@@ -57,61 +71,46 @@ def search_unified(q: str = Query(..., min_length=1, description="Cross-asset se
             change_1d_pct=q_item.change_1d_pct
         ))
 
-    # 2. Key ETFs
-    etf_list = [
-        {"symbol": "NIFTYBEES", "name": "Nippon India ETF Nifty 50 BeES", "cat": "Large Cap Equity ETF", "price": 272.50, "chg": 0.52},
-        {"symbol": "GOLDBEES", "name": "Nippon India ETF Gold BeES", "cat": "Commodities Gold ETF", "price": 64.80, "chg": 0.35},
-        {"symbol": "BANKBEES", "name": "Nippon India ETF Bank BeES", "cat": "Banking Sector ETF", "price": 512.40, "chg": -0.22},
-        {"symbol": "LIQUIDBEES", "name": "Nippon India ETF Liquid BeES", "cat": "Money Market / Cash", "price": 1000.00, "chg": 0.02},
-        {"symbol": "JUNIORBEES", "name": "Nippon India ETF Nifty Next 50", "cat": "Next 50 Large Cap", "price": 745.20, "chg": 0.65},
-    ]
-    for etf in etf_list:
-        if q_norm in etf["symbol"] or q_norm in etf["name"].upper() or q_norm in etf["cat"].upper():
+    # 2. ETFs with live quotes when available
+    for etf in ETFS_DATA:
+        searchable = q_norm in etf["symbol"] or q_norm in etf["name"].upper() or q_norm in etf.get("underlying_index", "").upper()
+        if searchable:
+            quote = market_data_provider.get_quote(etf["symbol"])
             results.append(UnifiedSearchResult(
                 symbol=etf["symbol"],
                 name=etf["name"],
                 asset_class="ETF",
-                sector_or_category=etf["cat"],
+                sector_or_category=etf.get("underlying_index"),
                 exchange="NSE",
-                current_price=etf["price"],
-                change_1d_pct=etf["chg"]
+                current_price=quote.current_price if quote else None,
+                change_1d_pct=quote.change_1d_pct if quote else None,
             ))
 
-    # 3. Sovereign Bonds
-    bond_list = [
-        {"symbol": "GS2033-7.18", "name": "7.18% Government of India Sovereign Bond 2033", "cat": "G-Sec 10Y Benchmark", "price": 100.85, "chg": 0.05},
-        {"symbol": "GS2034-7.10", "name": "7.10% Government of India Sovereign Bond 2034", "cat": "G-Sec Benchmark", "price": 100.20, "chg": 0.03},
-        {"symbol": "NABARD-7.65", "name": "NABARD AAA Corporate Infrastructure Bond 2029", "cat": "AAA Corporate / PSU", "price": 101.40, "chg": 0.02},
-    ]
-    for b in bond_list:
-        if q_norm in b["symbol"] or q_norm in b["name"].upper() or q_norm in b["cat"].upper():
+    # 3. RBI-backed sovereign bonds
+    for bond in rbi_provider.get_gsec_bonds():
+        searchable = q_norm in bond["symbol"] or q_norm in bond["name"].upper()
+        if searchable:
             results.append(UnifiedSearchResult(
-                symbol=b["symbol"],
-                name=b["name"],
+                symbol=bond["symbol"],
+                name=bond["name"],
                 asset_class="BOND",
-                sector_or_category=b["cat"],
-                exchange="NSE / CCIL",
-                current_price=b["price"],
-                change_1d_pct=b["chg"]
+                sector_or_category=bond.get("bond_type"),
+                exchange="RBI / CCIL",
+                current_price=bond.get("market_price"),
+                change_1d_pct=None,
             ))
 
-    # 4. Mutual Funds
-    mf_list = [
-        {"symbol": "PPFC-FLEXI", "name": "Parag Parikh Flexi Cap Fund", "cat": "Flexi Cap Equity", "price": 84.50, "chg": 0.45},
-        {"symbol": "HDFC-TOP100", "name": "HDFC Top 100 Large Cap Fund", "cat": "Large Cap Equity", "price": 1120.30, "chg": 0.50},
-        {"symbol": "SBI-SMALLCAP", "name": "SBI Small Cap Fund Active Growth", "cat": "Small Cap Equity", "price": 178.40, "chg": 0.72},
-    ]
-    for m in mf_list:
-        if q_norm in m["symbol"] or q_norm in m["name"].upper() or q_norm in m["cat"].upper():
-            results.append(UnifiedSearchResult(
-                symbol=m["symbol"],
-                name=m["name"],
-                asset_class="MUTUAL_FUND",
-                sector_or_category=m["cat"],
-                exchange="Direct NAV",
-                current_price=m["price"],
-                change_1d_pct=m["chg"]
-            ))
+    # 4. Mutual funds with live AMFI NAV
+    for fund in amfi_provider.get_all_funds(search_query=q)[:5]:
+        results.append(UnifiedSearchResult(
+            symbol=fund["id"],
+            name=fund["scheme_name"],
+            asset_class="MUTUAL_FUND",
+            sector_or_category=fund.get("category"),
+            exchange="Direct NAV",
+            current_price=fund.get("nav"),
+            change_1d_pct=None,
+        ))
 
     return results[:20]
 
@@ -189,7 +188,22 @@ def get_stock_history(
 @router.get("/{symbol}/technicals", response_model=TechnicalIndicatorsResponse)
 def get_technical_indicators(symbol: str):
     """Retrieve technical indicators and candlestick pattern intelligence."""
-    return MarketService.get_technical_indicators(symbol)
+    try:
+        return MarketService.get_technical_indicators(symbol)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/{symbol}/forecast", response_model=TrendForecastResponse)
+def get_stock_forecast(
+    symbol: str,
+    days: int = Query(5, ge=3, le=15, description="Forecast horizon in trading sessions")
+):
+    """
+    Retrieve statistical trend estimation and 95% Gaussian confidence bands via statsmodels ARIMA.
+    Strictly educational and non-predictive.
+    """
+    return TrendForecastService.generate_forecast(symbol, horizon_days=days)
 
 
 @router.get("/{symbol}/fundamentals", response_model=FundamentalData)
@@ -201,10 +215,47 @@ def get_stock_fundamentals(symbol: str):
     return fund
 
 
+@router.get("/{symbol}/fundamentals/history", response_model=Dict[str, Any])
+def get_historical_fundamentals(symbol: str):
+    """Retrieve annual sourced statement series and sales, profit, EPS, and FCF CAGRs."""
+    history = MarketService.get_historical_fundamentals(symbol)
+    if not history:
+        raise HTTPException(status_code=404, detail=f"Historical fundamentals not available for '{symbol}'.")
+    return history
+
+
+@router.get("/{symbol}/valuation-bands", response_model=Dict[str, Any])
+def get_valuation_bands(symbol: str):
+    """Compare current P/E and P/B with sourced historical observation bands."""
+    bands = MarketService.get_valuation_bands(symbol)
+    if not bands:
+        raise HTTPException(status_code=404, detail=f"Historical valuation bands not available for '{symbol}'.")
+    return bands
+
+
+@router.get("/{symbol}/score", response_model=Dict[str, Any])
+def get_stock_score(symbol: str):
+    """Return a transparent descriptive score from available data only."""
+    fundamentals = MarketService.get_fundamentals(symbol)
+    if not fundamentals:
+        raise HTTPException(status_code=404, detail=f"Fundamentals not found for '{symbol}'.")
+    try:
+        technicals = MarketService.get_technical_indicators(symbol)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return build_stock_score(fundamentals, technicals)
+
+
 @router.get("/{symbol}/corporate-actions", response_model=List[CorporateActionItem])
 def get_corporate_actions(symbol: str):
     """Retrieve corporate actions: dividends, bonus issues, splits, rights, buybacks."""
     return MarketService.get_corporate_actions(symbol)
+
+
+@router.get("/{symbol}/sourced-events", response_model=List[Dict[str, Any]])
+def get_sourced_events(symbol: str):
+    """Retrieve deduplicated Yahoo Finance earnings, dividends, splits, and news events."""
+    return MarketService.get_sourced_events(symbol)
 
 
 @router.get("/{symbol}/bulk-deals", response_model=List[BulkBlockDealItem])
@@ -241,3 +292,9 @@ def get_stock_documents(symbol: str):
 def run_screener(filters: ScreenerFilterRequest):
     """Run institutional multi-factor equity screener."""
     return MarketService.run_screener(filters)
+
+
+@router.get("/screener/parse", response_model=Dict[str, Any])
+def parse_screener_query(q: str = Query(..., min_length=2, description="Explicit screener conditions")):
+    """Translate explicit natural-language conditions into reviewable screener filters."""
+    return parse_screen_query(q)

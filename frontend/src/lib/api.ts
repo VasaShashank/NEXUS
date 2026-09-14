@@ -65,6 +65,13 @@ export interface StockQuote {
   as_of?: string;
 }
 
+export interface FinanceLibraryCapability {
+  library: string;
+  installed: boolean;
+  status: "active" | "active_optional" | "planned";
+  purpose: string;
+}
+
 export interface HistoricalCandle {
   time: string;
   open: number;
@@ -178,6 +185,44 @@ export interface FundamentalData {
   rsi_14?: number;
   source?: string;
   as_of_date?: string;
+}
+
+export interface HistoricalFundamentals {
+  symbol: string;
+  annual: Record<string, Array<{ period: string; value: number }>>;
+  cagr: Record<string, number | null>;
+  working_capital: {
+    inventory_days: number | null;
+    debtor_days: number | null;
+    payable_days: number | null;
+    cash_cycle_days: number | null;
+  };
+  source: string;
+  as_of: string;
+  methodology: string;
+}
+
+export interface AlertItem {
+  id: number;
+  symbol: string;
+  condition: string;
+  threshold?: number;
+  active: boolean;
+  triggered: boolean;
+  current_value?: number;
+  current_change_pct?: number;
+  created_at?: string;
+  last_triggered_at?: string;
+}
+
+export interface StockScoreResponse {
+  symbol: string;
+  overall_score: number;
+  categories: Record<string, number>;
+  strengths: string[];
+  risks: string[];
+  methodology: string;
+  disclaimer: string;
 }
 
 export interface CorporateActionItem {
@@ -456,14 +501,16 @@ export interface CommodityFxItem {
 export interface MacroIndicatorItem {
   id: string;
   name: string;
-  current_value: number;
+  current_value: number | null;
   unit: string;
   frequency: string;
   trend: string;
   target_band: string;
-  last_updated: string;
+  last_updated: string | null;
   historical_series: Array<{ period: string; value: number }>;
   sector_linkage: string;
+  data_status?: string;
+  source_url?: string;
 }
 
 export interface SMABacktestResponse {
@@ -595,6 +642,9 @@ export const api = {
   getMarketOverview: () => fetchJson<MarketOverviewResponse>("/market/overview"),
   getIndices: () => fetchJson<IndexQuote[]>("/market/indices"),
   getProviderHealth: () => fetchJson<ProviderHealthResponse>("/stocks/health"),
+  getBrokerHealth: () => fetchJson<any[]>("/brokers/health"),
+  getPaperBrokerPositions: () => fetchJson<any[]>("/brokers/paper/positions"),
+  getFinanceLibraryCapabilities: () => fetchJson<FinanceLibraryCapability[]>("/stocks/capabilities"),
   
   // Stocks
   searchStocks: (q: string) => fetchJson<StockQuote[]>(`/stocks/search?q=${encodeURIComponent(q)}`),
@@ -603,9 +653,14 @@ export const api = {
   getHistory: (symbol: string, timeframe: string = "1M") =>
     fetchJson<HistoricalCandle[]>(`/stocks/${symbol}/history?timeframe=${timeframe}`),
   getTechnicals: (symbol: string) => fetchJson<TechnicalIndicatorsResponse>(`/stocks/${symbol}/technicals`),
+  getForecast: (symbol: string, days: number = 5) => fetchJson<any>(`/stocks/${symbol}/forecast?days=${days}`),
   getFundamentals: (symbol: string) => fetchJson<FundamentalData>(`/stocks/${symbol}/fundamentals`),
+  getHistoricalFundamentals: (symbol: string) => fetchJson<HistoricalFundamentals>(`/stocks/${symbol}/fundamentals/history`),
+  getValuationBands: (symbol: string) => fetchJson<any>(`/stocks/${symbol}/valuation-bands`),
+  getStockScore: (symbol: string) => fetchJson<StockScoreResponse>(`/stocks/${symbol}/score`),
   compareStocks: (symbols: string[]) => fetchJson<StockCompareResponse>(`/stocks/compare?symbols=${encodeURIComponent(symbols.join(","))}`),
   getCorporateActions: (symbol?: string) => fetchJson<CorporateActionItem[]>(symbol ? `/stocks/${symbol}/corporate-actions` : "/stocks/RELIANCE/corporate-actions"),
+  getSourcedEvents: (symbol: string) => fetchJson<any[]>(`/stocks/${symbol}/sourced-events`),
   getBulkDeals: (symbol?: string) => fetchJson<BulkBlockDealItem[]>(symbol ? `/stocks/${symbol}/bulk-deals` : "/stocks/RELIANCE/bulk-deals"),
   getInsiderTrades: (symbol?: string) => fetchJson<InsiderTradeItem[]>(symbol ? `/stocks/${symbol}/insider-trades` : "/stocks/RELIANCE/insider-trades"),
   getNews: (symbol?: string) => fetchJson<any[]>(symbol ? `/stocks/${symbol}/news` : "/stocks/RELIANCE/news"),
@@ -615,10 +670,21 @@ export const api = {
       method: "POST",
       body: JSON.stringify(filters),
     }),
+  parseScreenerQuery: (query: string) =>
+    fetchJson<{ filters: Record<string, any>; matched_conditions: string[]; unparsed: boolean; disclaimer: string }>(
+      `/stocks/screener/parse?q=${encodeURIComponent(query)}`
+    ),
 
   // Multi-Asset
-  getMutualFunds: () => fetchJson<MutualFundItem[]>("/assets/mutual-funds"),
+  getMutualFunds: (query?: string) =>
+    fetchJson<MutualFundItem[]>(query ? `/assets/mutual-funds?q=${encodeURIComponent(query)}` : "/assets/mutual-funds"),
+  getMutualFundCatalog: (query?: string, limit: number = 250) =>
+    fetchJson<Array<{ scheme_code: string; scheme_name: string; source: string; retrieved_at?: string }>>(
+      `/assets/mutual-funds/catalog?limit=${limit}${query ? `&q=${encodeURIComponent(query)}` : ""}`
+    ),
   getMutualFundDetail: (id: string) => fetchJson<MutualFundItem>(`/assets/mutual-funds/${id}`),
+  getMutualFundNavHistory: (schemeCode: string) => fetchJson<any[]>(`/assets/mutual-funds/${schemeCode}/nav-history`),
+  getMutualFundAnalytics: (schemeCode: string) => fetchJson<any>(`/assets/mutual-funds/${schemeCode}/analytics`),
   calculateFundOverlap: (fundA: string, fundB: string) =>
     fetchJson<any>("/assets/mutual-funds/overlap", {
       method: "POST",
@@ -626,6 +692,7 @@ export const api = {
     }),
   getEtfs: () => fetchJson<ETFItem[]>("/assets/etfs"),
   getEtfLookThrough: (symbol: string) => fetchJson<any>(`/assets/etfs/${symbol}/look-through`),
+  getEtfTrackingDifference: (symbol: string) => fetchJson<any>(`/assets/etfs/${symbol}/tracking-difference`),
   getBonds: () => fetchJson<BondItem[]>("/assets/bonds"),
   simulateBondLadder: (payload: { total_investment: number; target_tenor_years: number; risk_preference?: string }) =>
     fetchJson<any>("/assets/bonds/ladder-simulator", {
@@ -656,9 +723,19 @@ export const api = {
       method: "DELETE",
     }),
 
+  // Alerts
+  getAlerts: () => fetchJson<AlertItem[]>("/alerts"),
+  createAlert: (payload: { symbol: string; condition: string; threshold?: number }) =>
+    fetchJson<AlertItem>("/alerts", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  evaluateAlerts: () => fetchJson<AlertItem[]>("/alerts/evaluate", { method: "POST" }),
+  deleteAlert: (alertId: number) => fetchJson<{ deleted: number }>(`/alerts/${alertId}`, { method: "DELETE" }),
+
   // Portfolio & Trading
   getPortfolioSummary: () => fetchJson<PortfolioSummaryResponse>("/portfolio/summary"),
-  executeOrder: (payload: { symbol: string; side: "BUY" | "SELL"; quantity: number; order_type?: string }) =>
+  executeOrder: (payload: { symbol: string; side: "BUY" | "SELL"; quantity: number; order_type?: string; idempotency_key?: string }) =>
     fetchJson<any>("/portfolio/order", {
       method: "POST",
       body: JSON.stringify(payload),
@@ -672,6 +749,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ target_allocations: targetAllocations }),
     }),
+  optimizePortfolio: (symbols: string[] = [], transactionCostBps: number = 10) =>
+    fetchJson<any>("/portfolio/optimize", {
+      method: "POST",
+      body: JSON.stringify({ symbols, transaction_cost_bps: transactionCostBps }),
+    }),
   resetPortfolio: () =>
     fetchJson<PortfolioSummaryResponse>("/portfolio/reset", {
       method: "POST",
@@ -683,6 +765,15 @@ export const api = {
   // Quant Lab
   runSmaBacktest: (payload: { symbol: string; fast_period: number; slow_period: number; initial_capital?: number; slippage_bps?: number }) =>
     fetchJson<SMABacktestResponse>("/backtest/sma-crossover", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  getSimilarity: (symbols: string[], correlationThreshold: number = 0.7) =>
+    fetchJson<any>(`/backtest/similarity?symbols=${encodeURIComponent(symbols.join(","))}&correlation_threshold=${correlationThreshold}`),
+  getAnomalies: (symbol: string, zThreshold: number = 3) =>
+    fetchJson<any>(`/backtest/anomalies/${symbol}?z_threshold=${zThreshold}`),
+  runWalkForward: (payload: { symbol: string; fast_periods?: number[]; slow_periods?: number[]; train_window?: number; test_window?: number; step?: number }) =>
+    fetchJson<any>("/backtest/walk-forward", {
       method: "POST",
       body: JSON.stringify(payload),
     }),

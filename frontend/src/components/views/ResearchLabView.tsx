@@ -24,10 +24,13 @@ export const ResearchLabView: React.FC = () => {
 
   const [backtestResult, setBacktestResult] = useState<SMABacktestResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
+  const [backtestError, setBacktestError] = useState<string | null>(null);
   const [factors, setFactors] = useState<any[]>([]);
+  const [factorsError, setFactorsError] = useState<string | null>(null);
 
   const runBacktest = async () => {
     setLoading(true);
+    setBacktestError(null);
     try {
       const res = await api.runSmaBacktest({
         symbol,
@@ -38,6 +41,7 @@ export const ResearchLabView: React.FC = () => {
       setBacktestResult(res);
     } catch (err) {
       console.warn("Backtest failed:", err);
+      setBacktestError("Could not reach the NEXUS backtesting service. Retry below.");
     } finally {
       setLoading(false);
     }
@@ -45,11 +49,13 @@ export const ResearchLabView: React.FC = () => {
 
   useEffect(() => {
     const loadFactors = async () => {
+      setFactorsError(null);
       try {
         const data = await api.getFactorResearch();
         setFactors(data);
       } catch (err) {
         console.warn("Failed to load factors:", err);
+        setFactorsError("Could not reach the NEXUS factor research service.");
       }
     };
     loadFactors();
@@ -176,6 +182,18 @@ export const ResearchLabView: React.FC = () => {
             </div>
           </div>
 
+          {backtestError && (
+            <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center justify-between gap-4">
+              <span>{backtestError}</span>
+              <button
+                onClick={runBacktest}
+                className="shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-medium bg-rose-500/15 border border-rose-500/30 text-rose-200 hover:bg-rose-500/25 transition-colors"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
           {/* Results: In-Sample vs Out-of-Sample Display */}
           {backtestResult && backtestResult.in_sample_results && (
             <div className="space-y-6">
@@ -299,7 +317,12 @@ export const ResearchLabView: React.FC = () => {
       )}
 
       {/* Tab 2: Descriptive Factor Research */}
-      {activeTab === "factors" && (
+      {activeTab === "factors" && factorsError && (
+        <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs">
+          {factorsError}
+        </div>
+      )}
+      {activeTab === "factors" && !factorsError && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {factors.map((factor) => (
             <div

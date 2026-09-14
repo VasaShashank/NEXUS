@@ -24,6 +24,8 @@ class StockQuote(BaseModel):
     description: Optional[str] = None
     data_source: Optional[str] = "NSE/BSE Delayed 15m"
     as_of: Optional[str] = None
+    data_status: Optional[str] = "LIVE_PROVIDER_QUOTE"
+    source_url: Optional[str] = None
 
 
 class IndexQuote(BaseModel):
@@ -155,6 +157,8 @@ class FundamentalData(BaseModel):
     source: str = "Audited Annual Reports & BSE/NSE Filings"
     as_of_date: Optional[str] = "Q1 FY26"
     shareholding_trend: Optional[List[Dict[str, Any]]] = None
+    data_status: Optional[str] = "SOURCED_PROVIDER"
+    source_url: Optional[str] = None
 
 
 class CorporateActionItem(BaseModel):
@@ -254,10 +258,22 @@ class ScreenerFilterRequest(BaseModel):
     min_pe: Optional[float] = None
     max_pe: Optional[float] = None
     min_roe: Optional[float] = None
+    min_roce: Optional[float] = None
+    min_revenue_growth: Optional[float] = None
+    min_profit_growth: Optional[float] = None
+    min_operating_margin: Optional[float] = None
+    max_distance_from_52w_high: Optional[float] = None
+    min_distance_from_52w_low: Optional[float] = None
+    min_volume: Optional[float] = None
     max_debt_equity: Optional[float] = None
     min_dividend_yield: Optional[float] = None
     min_rsi: Optional[float] = None
     max_rsi: Optional[float] = None
+    min_relative_volume: Optional[float] = None
+    min_beta: Optional[float] = None
+    max_beta: Optional[float] = None
+    min_atr_pct: Optional[float] = None
+    max_atr_pct: Optional[float] = None
     sector: Optional[str] = None
     sort_by: Optional[str] = "market_cap"
     sort_dir: Optional[str] = "desc"

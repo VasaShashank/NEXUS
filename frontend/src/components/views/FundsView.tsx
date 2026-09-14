@@ -24,6 +24,7 @@ export const FundsView: React.FC<FundsViewProps> = ({ onSelectStock }) => {
   const [funds, setFunds] = useState<MutualFundItem[]>([]);
   const [etfs, setEtfs] = useState<ETFItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Overlap Calculator state
   const [selectedFundA, setSelectedFundA] = useState<string>("PPFC-FLEXI");
@@ -35,22 +36,50 @@ export const FundsView: React.FC<FundsViewProps> = ({ onSelectStock }) => {
   const [selectedEtf, setSelectedEtf] = useState<string>("NIFTYBEES");
   const [etfLookThrough, setEtfLookThrough] = useState<any | null>(null);
 
-  useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      try {
-        const [fundsData, etfsData] = await Promise.all([
-          api.getMutualFunds(),
-          api.getEtfs(),
-        ]);
-        setFunds(fundsData);
-        setEtfs(etfsData);
-      } catch (err) {
-        console.warn("Failed to load funds/etfs:", err);
-      } finally {
-        setLoading(false);
+  // Live Scheme Search state
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [isSearching, setIsSearching] = useState<boolean>(false);
+
+  const handleSearch = async (query: string) => {
+    setSearchQuery(query);
+    if (!query.trim()) {
+      loadData();
+      return;
+    }
+    setIsSearching(true);
+    try {
+      const results = await api.getMutualFunds(query);
+      if (results && results.length > 0) {
+        setFunds(results);
       }
-    };
+    } catch (err) {
+      console.warn("Fund search error:", err);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const loadData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [fundsData, etfsData] = await Promise.all([
+        api.getMutualFunds(),
+        api.getEtfs(),
+      ]);
+      setFunds(fundsData);
+      setEtfs(etfsData);
+    } catch (err) {
+      console.warn("Failed to load funds/etfs:", err);
+      setError(
+        "Could not reach the NEXUS data service for mutual funds & ETFs. This is usually a transient backend cold-start or network issue — retry below."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     loadData();
   }, []);
 
@@ -140,6 +169,18 @@ export const FundsView: React.FC<FundsViewProps> = ({ onSelectStock }) => {
         </div>
       </div>
 
+      {error && (
+        <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center justify-between gap-4">
+          <span>{error}</span>
+          <button
+            onClick={loadData}
+            className="shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-medium bg-rose-500/15 border border-rose-500/30 text-rose-200 hover:bg-rose-500/25 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {loading && (
         <div className="p-12 text-center text-xs text-slate-400 animate-pulse">
           Loading mutual funds & ETF portfolios...
@@ -147,8 +188,27 @@ export const FundsView: React.FC<FundsViewProps> = ({ onSelectStock }) => {
       )}
 
       {/* Tab 1: Mutual Funds Explorer */}
-      {!loading && activeTab === "funds" && (
+      {!loading && !error && activeTab === "funds" && (
         <div className="space-y-4">
+          {/* Live Search and AMFI status bar */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 rounded-xl bg-surface-50 border border-border">
+            <div className="relative w-full sm:w-96">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search scheme name or AMC (e.g. Parag Parikh, Axis, Quant, HDFC)..."
+                value={searchQuery}
+                onChange={(e) => handleSearch(e.target.value)}
+                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg pl-9 pr-3 py-1.5 text-xs text-foreground placeholder-slate-500 focus:outline-none focus:border-accent-cyan transition-colors"
+              />
+            </div>
+            <div className="text-[11px] text-slate-400 flex items-center space-x-2 shrink-0">
+              <span className="w-2 h-2 rounded-full bg-accent-emerald animate-pulse" />
+              <span className="font-medium text-slate-300">Live AMFI NAV Feed Active</span>
+              {isSearching && <span className="text-accent-cyan animate-pulse">Searching...</span>}
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {funds.map((fund) => (
               <div
@@ -337,7 +397,7 @@ export const FundsView: React.FC<FundsViewProps> = ({ onSelectStock }) => {
       )}
 
       {/* Tab 3: ETFs & Look-Through */}
-      {!loading && activeTab === "etfs" && (
+      {!loading && !error && activeTab === "etfs" && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {etfs.map((etf) => (

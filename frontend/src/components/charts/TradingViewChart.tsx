@@ -63,6 +63,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({
   const oscillatorContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const oscillatorChartRef = useRef<IChartApi | null>(null);
+  const chartPreferencesHydrated = useRef(false);
 
   // Chart type
   const [chartType, setChartType] = useState<"candlestick" | "bar" | "line" | "area">("candlestick");
@@ -92,6 +93,45 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({
 
   // Selected Pattern Detail Modal
   const [selectedPattern, setSelectedPattern] = useState<CandlestickPatternAnnotation | null>(null);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("nexus-chart-preferences");
+      if (saved) {
+        const preferences = JSON.parse(saved);
+        if (preferences.chartType) setChartType(preferences.chartType);
+        if (typeof preferences.showVolume === "boolean") setShowVolume(preferences.showVolume);
+        if (typeof preferences.showSR === "boolean") setShowSR(preferences.showSR);
+        if (typeof preferences.showSMA20 === "boolean") setShowSMA20(preferences.showSMA20);
+        if (typeof preferences.showSMA50 === "boolean") setShowSMA50(preferences.showSMA50);
+        if (typeof preferences.showEMA21 === "boolean") setShowEMA21(preferences.showEMA21);
+        if (typeof preferences.showVWAP === "boolean") setShowVWAP(preferences.showVWAP);
+        if (typeof preferences.showBollinger === "boolean") setShowBollinger(preferences.showBollinger);
+        if (typeof preferences.showPatterns === "boolean") setShowPatterns(preferences.showPatterns);
+        if (preferences.activeOscillator) setActiveOscillator(preferences.activeOscillator);
+      }
+    } catch {
+      // Ignore malformed local preferences and restore the defaults.
+    } finally {
+      chartPreferencesHydrated.current = true;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!chartPreferencesHydrated.current) return;
+    window.localStorage.setItem("nexus-chart-preferences", JSON.stringify({
+      chartType,
+      showVolume,
+      showSR,
+      showSMA20,
+      showSMA50,
+      showEMA21,
+      showVWAP,
+      showBollinger,
+      showPatterns,
+      activeOscillator,
+    }));
+  }, [chartType, showVolume, showSR, showSMA20, showSMA50, showEMA21, showVWAP, showBollinger, showPatterns, activeOscillator]);
 
   const timeframes = ["1D", "1W", "1M", "6M", "1Y", "5Y"];
 

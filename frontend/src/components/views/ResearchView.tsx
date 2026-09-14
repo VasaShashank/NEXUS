@@ -23,6 +23,7 @@ import {
   HistoricalCandle,
   TechnicalIndicatorsResponse,
   FundamentalData,
+  StockScoreResponse,
 } from "@/lib/api";
 import { TradingViewChart } from "../charts/TradingViewChart";
 import { InfoTooltip } from "@/components/common/InfoTooltip";
@@ -46,6 +47,7 @@ export const ResearchView: React.FC<ResearchViewProps> = ({
   const [candles, setCandles] = useState<HistoricalCandle[]>([]);
   const [technicals, setTechnicals] = useState<TechnicalIndicatorsResponse | null>(null);
   const [fundamentals, setFundamentals] = useState<FundamentalData | null>(null);
+  const [stockScore, setStockScore] = useState<StockScoreResponse | null>(null);
   const [news, setNews] = useState<any[]>([]);
   const [documents, setDocuments] = useState<any[]>([]);
   const [corporateActions, setCorporateActions] = useState<any[]>([]);
@@ -56,6 +58,7 @@ export const ResearchView: React.FC<ResearchViewProps> = ({
     "technicals"
   );
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Trade Ticket State
   const [orderSide, setOrderSide] = useState<"BUY" | "SELL">("BUY");
@@ -63,36 +66,43 @@ export const ResearchView: React.FC<ResearchViewProps> = ({
   const [tradeStatus, setTradeStatus] = useState<string | null>(null);
   const [isExecuting, setIsExecuting] = useState<boolean>(false);
 
+  const fetchStockData = async () => {
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const [q, c, t, f, score, n, d, ca, bd, it] = await Promise.all([
+        api.getQuote(symbol),
+        api.getHistory(symbol, timeframe),
+        api.getTechnicals(symbol),
+        api.getFundamentals(symbol),
+        api.getStockScore(symbol).catch(() => null),
+        api.getNews(symbol),
+        api.getDocuments(symbol),
+        api.getCorporateActions(symbol).catch(() => []),
+        api.getBulkDeals(symbol).catch(() => []),
+        api.getInsiderTrades(symbol).catch(() => []),
+      ]);
+      setQuote(q);
+      setCandles(c);
+      setTechnicals(t);
+      setFundamentals(f);
+      setStockScore(score);
+      setNews(n);
+      setDocuments(d);
+      setCorporateActions(ca || []);
+      setBulkDeals(bd || []);
+      setInsiderTrades(it || []);
+    } catch (err) {
+      console.error("Error fetching stock research data:", err);
+      setLoadError(
+        `Could not reach the NEXUS data service for ${symbol}. This is usually a transient backend issue rather than a missing symbol — retry below.`
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchStockData = async () => {
-      setIsLoading(true);
-      try {
-        const [q, c, t, f, n, d, ca, bd, it] = await Promise.all([
-          api.getQuote(symbol),
-          api.getHistory(symbol, timeframe),
-          api.getTechnicals(symbol),
-          api.getFundamentals(symbol),
-          api.getNews(symbol),
-          api.getDocuments(symbol),
-          api.getCorporateActions(symbol).catch(() => []),
-          api.getBulkDeals(symbol).catch(() => []),
-          api.getInsiderTrades(symbol).catch(() => []),
-        ]);
-        setQuote(q);
-        setCandles(c);
-        setTechnicals(t);
-        setFundamentals(f);
-        setNews(n);
-        setDocuments(d);
-        setCorporateActions(ca || []);
-        setBulkDeals(bd || []);
-        setInsiderTrades(it || []);
-      } catch (err) {
-        console.error("Error fetching stock research data:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
     fetchStockData();
   }, [symbol, timeframe]);
 
@@ -121,6 +131,22 @@ export const ResearchView: React.FC<ResearchViewProps> = ({
       <div className="p-6 space-y-6 max-w-7xl mx-auto animate-pulse">
         <div className="h-32 rounded-2xl skeleton" />
         <div className="h-96 rounded-xl bg-white/[0.03]" />
+      </div>
+    );
+  }
+
+  if (!quote && loadError) {
+    return (
+      <div className="p-6 max-w-2xl mx-auto">
+        <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center justify-between gap-4">
+          <span>{loadError}</span>
+          <button
+            onClick={fetchStockData}
+            className="shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-medium bg-rose-500/15 border border-rose-500/30 text-rose-200 hover:bg-rose-500/25 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
       </div>
     );
   }
@@ -546,6 +572,30 @@ export const ResearchView: React.FC<ResearchViewProps> = ({
       {/* TAB 2: FUNDAMENTALS */}
       {activeTab === "fundamentals" && fundamentals && (
         <div className="space-y-6">
+          {stockScore && (
+            <div className="p-5 rounded-2xl glass-card space-y-4">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-xs font-bold text-foreground uppercase tracking-wider">Explainable Stock Score</h3>
+                  <p className="text-[11px] text-slate-500 mt-1">Threshold-based decision support from available observations.</p>
+                </div>
+                <span className="text-2xl font-bold text-accent-cyan tabular-nums">{stockScore.overall_score}/100</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {Object.entries(stockScore.categories).map(([category, value]) => (
+                  <div key={category} className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.05]">
+                    <div className="text-[10px] uppercase tracking-wide text-slate-500">{category.replace("_", " ")}</div>
+                    <div className="mt-1 text-sm font-semibold text-foreground">{value}/100</div>
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                <div><span className="text-accent-emerald font-semibold">Strengths:</span> {stockScore.strengths.join(" ")}</div>
+                <div><span className="text-accent-amber font-semibold">Risks:</span> {stockScore.risks.join(" ")}</div>
+              </div>
+              <p className="text-[10px] text-slate-500">{stockScore.disclaimer}</p>
+            </div>
+          )}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="p-4 rounded-2xl glass-card">
               <span className="text-xs text-slate-400 block mb-1">Market Capitalization</span>

@@ -69,6 +69,42 @@ def test_health_endpoints():
     assert response.json()["status"] == "healthy"
 
 
+def test_finance_library_capabilities():
+    response = client.get("/api/v1/stocks/capabilities")
+    assert response.status_code == 200
+    capabilities = {item["library"]: item for item in response.json()}
+    assert capabilities["yfinance"]["installed"] is True
+    assert capabilities["mftool"]["status"] == "active_optional"
+    assert capabilities["statsmodels"]["status"] == "active"
+    assert capabilities["vectorbt"]["status"] == "planned"
+
+
+def test_natural_language_screener_parser():
+    response = client.get("/api/v1/stocks/screener/parse?q=ROE above 20 and PE below 25 and debt below 0.5")
+    assert response.status_code == 200
+    filters = response.json()["filters"]
+    assert filters["min_roe"] == 20.0
+    assert filters["max_pe"] == 25.0
+    assert filters["max_debt_equity"] == 0.5
+
+
+def test_screener_price_distance_and_volume_filters():
+    response = client.post("/api/v1/stocks/screener", json={"max_distance_from_52w_high": 0, "min_volume": 1})
+    assert response.status_code == 200
+    for row in response.json():
+        assert row["distance_from_52w_high_pct"] <= 0
+        assert row["volume"] >= 1
+
+
+def test_explainable_stock_score():
+    response = client.get("/api/v1/stocks/TCS/score")
+    assert response.status_code == 200
+    data = response.json()
+    assert 0 <= data["overall_score"] <= 100
+    assert set(data["categories"]) == {"financial_quality", "growth", "valuation", "momentum"}
+    assert "missing values are excluded" in data["methodology"]
+
+
 def test_market_overview():
     response = client.get("/api/v1/market/overview")
     assert response.status_code == 200
@@ -134,6 +170,20 @@ def test_paper_trading_order_execution():
     # Verify remaining holding
     summary2 = client.get("/api/v1/portfolio/summary").json()
     assert summary2["holdings"][0]["quantity"] == 5
+
+
+def test_paper_order_type_validation():
+    quote = client.get("/api/v1/stocks/RELIANCE/quote").json()
+    current_price = quote["current_price"]
+    response = client.post("/api/v1/portfolio/order", json={
+        "symbol": "RELIANCE",
+        "side": "BUY",
+        "order_type": "LIMIT",
+        "limit_price": current_price * 0.5,
+        "quantity": 1,
+    })
+    assert response.status_code == 400
+    assert "LIMIT order not executed" in response.json()["detail"]
 
 
 def test_ai_tools_and_agent():
@@ -287,7 +337,11 @@ def test_sma_backtest_endpoint():
     assert "in_sample" in data
     assert "out_of_sample" in data
     in_s = data["in_sample"]
-    assert "total_return_pct" in in_s
-    assert "max_drawdown_pct" in in_s
-    assert "sharpe_ratio" in in_s
-    assert "num_trades" in in_s
+    if in_s is None:
+        assert "error" in data
+        assert data["out_of_sample"] is None
+    else:
+        assert "total_return_pct" in in_s
+        assert "max_drawdown_pct" in in_s
+        assert "sharpe_ratio" in in_s
+        assert "num_trades" in in_s

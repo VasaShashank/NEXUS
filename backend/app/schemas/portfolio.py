@@ -10,6 +10,10 @@ class OrderCreateRequest(BaseModel):
     side: str  # BUY or SELL
     order_type: str = "MARKET"
     quantity: int
+    limit_price: Optional[float] = None
+    stop_price: Optional[float] = None
+    validity: str = "DAY"
+    idempotency_key: Optional[str] = None
 
 
 class OrderResponse(BaseModel):
@@ -23,6 +27,8 @@ class OrderResponse(BaseModel):
     realized_pnl: float
     executed_at: str
     message: str
+    order_type: str = "MARKET"
+    status: str = "EXECUTED"
 
 
 class HoldingResponse(BaseModel):
@@ -64,6 +70,9 @@ class PortfolioAnalyticsResponse(BaseModel):
     win_rate: float
     equity_curve: List[Dict[str, Any]]
     benchmark_comparison: List[Dict[str, Any]]
+    observation_count: Optional[int] = None
+    long_history_metrics_ready: Optional[bool] = None
+    metrics_disclaimer: Optional[str] = None
 
 
 class RiskConcentration(BaseModel):
