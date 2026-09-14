@@ -55,7 +55,7 @@ NEXUS WORKSTATION
 │   ├── ETFs              → Constituent weight look-through (NIFTYBEES, GOLDBEES, JUNIORBEES, BANKBEES)
 │   ├── Bonds             → Sovereign G-Secs, PSU bonds, YTM/duration, and interactive Bond Ladder cash-flow simulator
 │   ├── Commodities & FX  → Gold, Silver, Brent Crude, and USD/INR historical charts with macro correlations
-│   └── Macro Dashboard   → CPI Inflation, Real GDP Growth, RBI Repo Rate, 10Y Benchmark Yield, Manufacturing PMI
+│   └── Macro Dashboard   → CPI Inflation, Real GDP Growth, RBI Repo Rate, 10Y Benchmark Yield
 │
 ├── PORTFOLIO
 │   ├── Portfolio & Paper → ₹10,00,000 virtual balance paper trading execution with real-time order matching
@@ -104,7 +104,7 @@ NEXUS WORKSTATION
 | **19** | **AI Research Reports** | Structured research generation strictly separating Facts, Calculated Metrics, Historical Observations, and Uncertainties. |
 | **20** | **Research Workspace & Journal** | Trade thesis logging, emotional rating, execution quality tracking, and thesis dossier recording. |
 | **21** | **Quant Research Lab & Backtesting** | Dual SMA crossover backtester with 70% In-Sample / 30% Out-of-Sample segregation, slippage assumptions (10 bps), equity curves, CAGR, drawdown, and factor intelligence profiles. |
-| **22** | **Macroeconomic Dashboard** | CPI Inflation, Real GDP Growth, RBI Repo Rate, 10Y Benchmark G-Sec Yield, and HSBC India Manufacturing PMI historical series with sector linkage notes. |
+| **22** | **Macroeconomic Dashboard** | CPI Inflation, Real GDP Growth, RBI Repo Rate, and 10Y Benchmark G-Sec Yield with sector linkage notes. Each indicator carries an explicit provenance status (`SOURCED_OFFICIAL` / `SOURCED_MARKET` / `DATA_UNAVAILABLE`); Manufacturing PMI is not served until a verified HSBC/S&P Global feed is connected. |
 | **23** | **Personalized Feed & Filings** | Dynamic portfolio and watchlist event tracking for announcements, earnings, and disclosures. |
 | **24** | **Event-Based Alerts Engine** | Threshold monitors for 52-week highs/lows, intraday price deviations, and portfolio drawdown alerts (strictly non-predictive). |
 | **25** | **Tax & Capital Gains Analytics** | Indian Union Budget 2024-25 rules: STCG @ 20%, LTCG @ 12.5% above ₹1,25,000 exemption limit. Tax lots, unrealized/realized gains, dividend income, and CSV exports. |
