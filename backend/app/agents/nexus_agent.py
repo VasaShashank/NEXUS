@@ -115,26 +115,38 @@ def execute_tools_node(state: ResearchState) -> Dict[str, Any]:
 
         # Generate Evidence Citations
         if tool_name == "get_stock_quote" and isinstance(res, dict) and "current_price" in res:
+            chg = res.get("change_1d_pct")
+            chg_txt = f"{chg:+,.2f}%" if chg is not None else "change n/a"
+            lo = res.get("low_price")
+            hi = res.get("high_price")
+            day_range = f"day range {lo} - {hi}" if lo is not None or hi is not None else "day range n/a"
             citations.append({
                 "source_type": "MARKET_DATA",
                 "title": f"{symbol} Live National Exchange Quote",
                 "reference": "NSE Realtime Feed",
-                "snippet": f"Trading at ₹{res['current_price']} ({res['change_1d_pct']:+,.2f}%) with day range ₹{res.get('low_price')} - ₹{res.get('high_price')}."
+                "snippet": f"Trading at ₹{res['current_price']} ({chg_txt}) with {day_range}."
             })
         elif tool_name == "get_fundamentals" and isinstance(res, dict) and "pe_ratio" in res:
+            pe = res.get("pe_ratio")
+            roe = res.get("roe")
+            de = res.get("debt_to_equity")
+            rev = res.get("revenue_growth_yoy")
             citations.append({
                 "source_type": "FUNDAMENTALS",
                 "title": f"{symbol} Financial Ratios & Balance Sheet",
-                "reference": "Audited Financials FY25-26",
-                "snippet": f"P/E: {res['pe_ratio']}x, ROE: {res['roe']}%, Debt/Equity: {res['debt_to_equity']}x, Revenue Growth: {res['revenue_growth_yoy']}% YoY."
+                "reference": "Live provider financial data",
+                "snippet": f"P/E: {pe}x, ROE: {roe}%, Debt/Equity: {de}x, Revenue Growth: {rev}% YoY."
             })
         elif tool_name == "get_technical_indicators" and isinstance(res, dict) and "overall_signal" in res:
             sr = res.get("support_resistance", {})
+            rsi = res.get("rsi_14")
+            macd_trend = res.get("macd", {}).get("trend")
+            nearest_sup = sr.get("nearest_support")
             citations.append({
                 "source_type": "TECHNICALS",
                 "title": f"{symbol} Technical Confluence Analysis",
                 "reference": "Multi-timeframe Momentum Engine",
-                "snippet": f"Signal: {res['overall_signal']}, RSI(14): {res.get('rsi_14')}, MACD Trend: {res.get('macd', {}).get('trend')}, Nearest Sup: ₹{sr.get('nearest_support')}."
+                "snippet": f"Signal: {res['overall_signal']}, RSI(14): {rsi}, MACD Trend: {macd_trend}, Nearest Sup: ₹{nearest_sup}."
             })
         elif tool_name == "search_financial_documents" and isinstance(res, list):
             for doc in res:
@@ -164,48 +176,82 @@ def synthesize_research_node(state: ResearchState) -> Dict[str, Any]:
     tech = data.get("get_technical_indicators", {})
     news = data.get("search_news", [])
 
-    curr_p = quote.get("current_price", 2500.0)
-    pe = fund.get("pe_ratio", 25.0)
-    roe = fund.get("roe", 18.0)
-    de = fund.get("debt_to_equity", 0.3)
-    rsi = tech.get("rsi_14", 55.0)
-    macd_trend = tech.get("macd", {}).get("trend", "BULLISH")
-    signal = tech.get("overall_signal", "BUY")
+    curr_p = quote.get("current_price")
+    change_pct = quote.get("change_1d_pct")
+    pe = fund.get("pe_ratio")
+    roe = fund.get("roe")
+    de = fund.get("debt_to_equity")
+    mcap = fund.get("market_cap")
+    rsi = tech.get("rsi_14")
+    macd_trend = tech.get("macd", {}).get("trend")
+    signal = tech.get("overall_signal")
+    sr = tech.get("support_resistance", {})
 
-    summary = (
-        f"Comprehensive research analysis for {symbol} ({quote.get('company_name', symbol)}). "
-        f"The stock is currently trading at ₹{curr_p:,.2f} ({quote.get('change_1d_pct', 0.0):+,.2f}%). "
-        f"Fundamentals demonstrate an ROE of {roe}% with a Debt-to-Equity ratio of {de}x and P/E ratio of {pe}x. "
-        f"Technical momentum indicates an overall '{signal}' posture, with 14-day RSI at {rsi} and MACD exhibiting a {macd_trend} structure."
-    )
+    def _fmt_num(value, suffix="", precision: int = 2) -> str:
+        if value is None:
+            return "Unavailable"
+        return f"{value:,.{precision}f}{suffix}"
 
-    bulls = [
-        f"Robust return on equity ({roe}%) and healthy operational profitability.",
-        f"Manageable leverage profile with Debt/Equity standing at {de}x.",
-        f"Technical indicators reflect {macd_trend.lower()} momentum with RSI positioned at {rsi}."
+    def _fmt_pct(value, precision: int = 2) -> str:
+        if value is None:
+            return "Unavailable"
+        sign = "+" if value >= 0 else ""
+        return f"{sign}{value:,.{precision}f}%"
+
+    summary_parts = [
+        f"Comprehensive research analysis for {symbol} ({quote.get('company_name', symbol)})."
     ]
+    if curr_p is not None:
+        summary_parts.append(f"The stock is currently trading at ₹{curr_p:,.2f} ({_fmt_pct(change_pct)}).")
+    if pe is not None:
+        summary_parts.append(f"The trailing P/E ratio is {pe:.2f}x.")
+    if roe is not None:
+        summary_parts.append(f"Return on equity stands at {roe:.2f}%.")
+    if de is not None:
+        summary_parts.append(f"Debt-to-Equity is {de:.2f}x.")
+    if rsi is not None:
+        summary_parts.append(f"14-day RSI is at {rsi:.1f}.")
+    if signal:
+        summary_parts.append(f"The technical confluence signal is '{signal}'" + (f" with MACD exhibiting a {macd_trend} structure." if macd_trend else "."))
+    if not any(v is not None for v in (curr_p, pe, roe, de, rsi)):
+        summary_parts.append("No live quote, fundamental, or technical data was retrievable for this symbol; the analysis below is therefore unavailable rather than approximate.")
+    summary = " ".join(summary_parts)
 
-    bears = [
-        f"Valuation multiple at {pe}x requires sustained double-digit earnings compounding.",
-        f"Sector exposure remains sensitive to macro commodity swings and interest rate cycles."
-    ]
+    bulls = []
+    if roe is not None:
+        bulls.append(f"Robust return on equity ({roe:.2f}%) and healthy operational profitability.")
+    if de is not None:
+        bulls.append(f"Manageable leverage profile with Debt/Equity standing at {de:.2f}x.")
+    if rsi is not None or macd_trend:
+        bulls.append("Technical indicators reflect "
+                     + (f"{macd_trend.lower()} momentum" if macd_trend else "mixed momentum")
+                     + (f" with RSI positioned at {rsi:.1f}." if rsi is not None else "."))
+    if not bulls:
+        bulls.append("No live data was available to construct a bull-case thesis.")
 
-    risks = [
-        "Execution risk across high-capex digital and infrastructure initiatives.",
-        f"Near-term technical support at ₹{tech.get('support_resistance', {}).get('nearest_support', curr_p * 0.96)} must hold on elevated volume."
-    ]
+    bears = []
+    if pe is not None:
+        bears.append(f"Valuation multiple at {pe:.2f}x requires sustained double-digit earnings compounding.")
+    bears.append("Sector exposure remains sensitive to macro commodity swings and interest rate cycles.")
+    if not bears:
+        bears.append("No live data was available to construct a bear-case thesis.")
+
+    risks = []
+    if sr.get("nearest_support") is not None and curr_p is not None:
+        risks.append(f"Near-term technical support at ₹{sr['nearest_support']:,.2f} must hold on elevated volume.")
+    risks.append("Execution risk across high-capex digital and infrastructure initiatives.")
 
     findings = {
         "verified_facts": {
-            "current_price": f"₹{curr_p:,.2f}",
-            "market_cap": f"₹{fund.get('market_cap', 0):,.0f} Cr",
-            "pe_ratio": f"{pe}x",
-            "debt_to_equity": f"{de}x",
-            "rsi_14": rsi,
-            "overall_signal": signal
+            "current_price": f"₹{curr_p:,.2f}" if curr_p is not None else "Unavailable",
+            "market_cap": f"₹{mcap:,.0f} Cr" if mcap is not None else "Unavailable",
+            "pe_ratio": f"{pe:.2f}x" if pe is not None else "Unavailable",
+            "debt_to_equity": f"{de:.2f}x" if de is not None else "Unavailable",
+            "rsi_14": f"{rsi:.1f}" if rsi is not None else "Unavailable",
+            "overall_signal": signal or "Unavailable"
         },
-        "interpretation": f"Based on multi-metric confluence, {symbol} displays resilient cash flows and stable operating margins, justifying premium valuation over sector peers.",
-        "uncertainties": "Global energy transition pace, currency fluctuations, and quarterly enterprise spending commitments."
+        "interpretation": f"Based on the available multi-metric confluence for {symbol}, capital allocation signals are described only where live data was retrievable; metrics listed as Unavailable were not returned by the live provider and are not estimated.",
+        "uncertainties": "Live provider data gaps, global energy transition pace, currency fluctuations, and quarterly enterprise spending commitments."
     }
 
     return {

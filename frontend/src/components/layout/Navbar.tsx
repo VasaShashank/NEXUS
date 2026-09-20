@@ -165,11 +165,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </div>
                     <div
                       className={`text-[11px] font-bold ${
-                        stock.change_1d_pct >= 0 ? "text-accent-emerald" : "text-accent-rose"
+                        (stock.change_1d_pct ?? 0) >= 0 ? "text-accent-emerald" : "text-accent-rose"
                       }`}
                     >
-                      {stock.change_1d_pct >= 0 ? "+" : ""}
-                      {stock.change_1d_pct?.toFixed(2)}%
+                      {stock.change_1d_pct != null ? (
+                        <>{stock.change_1d_pct >= 0 ? "+" : ""}{stock.change_1d_pct.toFixed(2)}%</>
+                      ) : (
+                        "—"
+                      )}
                     </div>
                   </div>
                 </button>

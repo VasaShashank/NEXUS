@@ -53,7 +53,7 @@ class WhyMovedResponse(BaseModel):
     symbol: str
     company_name: str
     change_1d_pct: float
-    volume_surge_ratio: float
+    volume_surge_ratio: Optional[float] = None
     sector_change_pct: float
     market_change_pct: float
     observed_factors: List[WhyMovedFactor]

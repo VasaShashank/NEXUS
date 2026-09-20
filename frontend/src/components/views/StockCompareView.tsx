@@ -202,7 +202,7 @@ export const StockCompareView: React.FC<StockCompareViewProps> = ({ onSelectStoc
                       }`}
                     >
                       {isUp ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
-                      <span>{q.change_1d_pct > 0 ? `+${q.change_1d_pct}%` : `${q.change_1d_pct}%`}</span>
+                      <span>{q.change_1d_pct != null ? (q.change_1d_pct > 0 ? `+${q.change_1d_pct}%` : `${q.change_1d_pct}%`) : "—"}</span>
                     </span>
                   </div>
 

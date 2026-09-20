@@ -201,10 +201,20 @@ class AMFIMutualFundProvider:
         """
         Returns mutual funds catalog enriched with live AMFI NAVs.
         If search_query is provided, filters or discovers matching schemes.
+        Return figures come only from live NAV history; curated catalog metrics
+        are never presented as live values.
         """
         enriched_funds = []
         for fund in MUTUAL_FUNDS_DATA:
             fund_copy = dict(fund)
+
+            # Remove curated numeric claims; they are only repopulated from live sources below.
+            for field in ("nav", "cagr_1y", "cagr_3y", "cagr_5y", "aum_crores", "expense_ratio", "turnover_ratio"):
+                fund_copy.pop(field, None)
+            fund_copy["aum_crores"] = None
+            fund_copy["expense_ratio"] = None
+            fund_copy["top_holdings"] = []
+
             fund_copy["data_source"] = "AMFI scheme master / AMC scheme information"
             fund_copy["source_url"] = "https://www.amfiindia.com/"
             scheme_code = CURATED_SCHEME_MAP.get(fund["id"])
@@ -213,6 +223,14 @@ class AMFIMutualFundProvider:
                 live_nav = self.get_latest_nav(scheme_code)
                 if live_nav:
                     fund_copy["nav"] = round(live_nav, 2)
+
+                analytics = self.get_nav_analytics(scheme_code)
+                if analytics.get("data_available"):
+                    returns = analytics.get("rolling_returns", {})
+                    fund_copy["cagr_1y"] = returns.get("1y")
+                    fund_copy["cagr_3y"] = returns.get("3y")
+                    fund_copy["cagr_5y"] = returns.get("5y")
+
             enriched_funds.append(fund_copy)
 
         if not search_query:

@@ -170,7 +170,7 @@ export const ResearchView: React.FC<ResearchViewProps> = ({
     );
   }
 
-  const isUp = quote.change_1d_pct >= 0;
+  const isUp = (quote.change_1d_pct ?? 0) >= 0;
 
   return (
     <div className="p-5 lg:p-6 space-y-6 max-w-7xl mx-auto">
@@ -203,11 +203,14 @@ export const ResearchView: React.FC<ResearchViewProps> = ({
               >
                 <span>
                   {isUp ? "+" : ""}
-                  <span className="rupee">₹</span>{quote.change_1d?.toFixed(2)}
+                  <span className="rupee">₹</span>{quote.change_1d != null ? quote.change_1d.toFixed(2) : "—"}
                 </span>
                 <span>
-                  ({isUp ? "+" : ""}
-                  {quote.change_1d_pct?.toFixed(2)}%)
+                  {quote.change_1d_pct != null ? (
+                    <>({isUp ? "+" : ""}{quote.change_1d_pct.toFixed(2)}%)</>
+                  ) : (
+                    "(—)"
+                  )}
                 </span>
               </div>
             </div>
@@ -281,7 +284,7 @@ export const ResearchView: React.FC<ResearchViewProps> = ({
               />
             </div>
             <span className="font-semibold text-foreground">
-              {(quote.volume / 1000000).toFixed(2)}M
+              {quote.volume != null ? `${(quote.volume / 1000000).toFixed(2)}M` : "—"}
             </span>
           </div>
           <div>

@@ -163,7 +163,7 @@ def compare_stocks(symbols: str = Query(..., description="Comma-separated symbol
         "quotes": quotes,
         "fundamentals": fundamentals,
         "normalized_performance": normalized_series,
-        "as_of": "Q1 FY26"
+        "as_of": ""
     }
 
 

@@ -20,14 +20,22 @@ class TrendForecastService:
     def generate_forecast(symbol: str, horizon_days: int = 5) -> TrendForecastResponse:
         norm = symbol.upper().split(".")[0]
         quote = market_data_provider.get_quote(norm)
-        current_price = quote.current_price if quote else 1000.0
 
         candles = market_data_provider.get_historical_candles(norm, "6M")
         if not candles or len(candles) < 20:
             candles = market_data_provider.get_historical_candles(norm, "1Y")
 
+        if not quote or quote.current_price is None:
+            return TrendForecastService._unavailable(
+                norm, "No live quote is available for this symbol; a statistical forecast cannot be produced."
+            )
+
         if not candles or len(candles) < 15:
-            return TrendForecastService._build_fallback_forecast(norm, current_price, horizon_days)
+            return TrendForecastService._unavailable(
+                norm, f"Insufficient live price history ({len(candles) if candles else 0} sessions); at least 15 sessions are required for a statistical estimate."
+            )
+
+        current_price = quote.current_price
 
         closes = [c.close for c in candles]
         dates = [c.time for c in candles]
@@ -134,26 +142,14 @@ class TrendForecastService:
         return trading_days
 
     @staticmethod
-    def _build_fallback_forecast(symbol: str, price: float, num_days: int) -> TrendForecastResponse:
-        forecast_dates = TrendForecastService._get_next_trading_days(datetime.now().strftime("%Y-%m-%d"), num_days)
-        points = []
-        vol = 0.015
-        for step in range(num_days):
-            margin = price * vol * math.sqrt(step + 1) * 1.96
-            points.append(ForecastPoint(
-                step=step + 1,
-                projected_date=forecast_dates[step],
-                projected_close=round(price, 2),
-                confidence_lower_95=round(max(1.0, price - margin), 2),
-                confidence_upper_95=round(price + margin, 2)
-            ))
-
+    def _unavailable(symbol: str, reason: str) -> TrendForecastResponse:
         return TrendForecastResponse(
             symbol=symbol,
-            current_price=round(price, 2),
-            model_name="Gaussian Dispersion Reference Envelope",
-            trend_outlook="SIDEWAYS_CONSOLIDATION",
-            trend_slope_pct=0.0,
-            historical_volatility_annualized=22.5,
-            forecast_points=points
+            current_price=None,
+            model_name="UNAVAILABLE",
+            trend_outlook="UNAVAILABLE",
+            trend_slope_pct=None,
+            historical_volatility_annualized=None,
+            forecast_points=[],
+            unavailable_reason=reason,
         )

@@ -423,7 +423,7 @@ export const ScreenerView: React.FC<ScreenerViewProps> = ({ onSelectStock }) => 
         <div className="flex items-center justify-between pb-4 border-b border-white/[0.05] mb-4">
           <div className="flex items-center gap-2">
             <span className="text-[14px] font-display font-bold text-foreground">
-              Matched Stocks ({results.length} found)
+              Matched Stocks ({results.length} of 24)
             </span>
             <span className="text-[11px] text-slate-400 font-light">
               Click any stock row to open deep research
@@ -445,7 +445,8 @@ export const ScreenerView: React.FC<ScreenerViewProps> = ({ onSelectStock }) => 
           </div>
         </div>
         <p className="mb-4 text-[11px] text-slate-500 leading-relaxed">
-          Screener universe: 24 hand-curated NSE/BSE large- and mid-cap names with reference-grade fundamentals.
+          Screener universe: 24 liquid NSE/BSE large- and mid-cap scanner names. All figures are fetched live from the
+          provider; any metric the provider does not return is shown as unavailable rather than estimated.
           Names outside this set can still be analyzed one at a time via Search → deep research desk.
         </p>
         <div className="flex flex-wrap items-center gap-2 mb-4">
@@ -513,7 +514,7 @@ export const ScreenerView: React.FC<ScreenerViewProps> = ({ onSelectStock }) => 
                     </td>
                     <td className="py-3.5 text-slate-400 text-xs">{stock.sector || "N/A"}</td>
                     <td className="py-3.5 text-right font-semibold tabular-nums text-foreground">
-                      ₹{stock.current_price?.toFixed(2)}
+                      {stock.current_price != null ? `₹${stock.current_price.toFixed(2)}` : "—"}
                     </td>
                     <td className="py-3.5 text-right tabular-nums text-slate-300">
                       {stock.market_cap ? stock.market_cap.toLocaleString("en-IN", { maximumFractionDigits: 0 }) : "—"}
@@ -528,7 +529,7 @@ export const ScreenerView: React.FC<ScreenerViewProps> = ({ onSelectStock }) => 
                       {stock.roe ? `${stock.roe.toFixed(1)}%` : "—"}
                     </td>
                     <td className="py-3.5 text-right tabular-nums text-slate-400">
-                      {stock.debt_to_equity !== undefined ? stock.debt_to_equity.toFixed(2) : "—"}
+                      {stock.debt_to_equity != null ? stock.debt_to_equity.toFixed(2) : "—"}
                     </td>
                     <td className="py-3.5 text-right">
                       <button

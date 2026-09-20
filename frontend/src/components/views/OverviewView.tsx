@@ -15,6 +15,8 @@ import {
   AlertCircle,
   CheckCircle2,
   LoaderCircle,
+  Newspaper,
+  ExternalLink,
 } from "lucide-react";
 import { api, MarketOverviewResponse, StockQuote, IndexQuote } from "@/lib/api";
 import { InfoTooltip } from "@/components/common/InfoTooltip";
@@ -31,6 +33,9 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onSelectStock, onNav
   const [activeTab, setActiveTab] = useState<"gainers" | "losers" | "active">("gainers");
   const [providerStatus, setProviderStatus] = useState<"loading" | "live" | "unavailable" | "error">("loading");
   const [showBrief, setShowBrief] = useState(false);
+  const [news, setNews] = useState<any[]>([]);
+  const [newsLoading, setNewsLoading] = useState(true);
+  const [newsFailed, setNewsFailed] = useState(false);
 
   const fetchOverview = async () => {
     setIsLoading(true);
@@ -51,6 +56,11 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onSelectStock, onNav
 
   useEffect(() => {
     fetchOverview();
+    api
+      .getMarketNews()
+      .then((items) => setNews(items))
+      .catch(() => setNewsFailed(true))
+      .finally(() => setNewsLoading(false));
   }, []);
 
   if (error) {
@@ -110,6 +120,13 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onSelectStock, onNav
           </p>
         </div>
         <div className="flex items-center space-x-2">
+          <div className="flex items-center">
+            <InfoTooltip
+              title="What does the AI Market Brief do?"
+              definition="A one-glance, rule-based summary of this page: it compresses breadth regime, index leadership, sector rotation, and top movers into 4 quick reads. It is deterministic — computed by rules over the exact indices, breadth, sector, and mover data shown below, not by a generative model."
+              decisionImpact="Use it as a fast session summary before the open. Every figure it quotes is traceable to the cards on this page — verify each signal against the research desk before acting."
+            />
+          </div>
           <button
             onClick={() => setShowBrief(!showBrief)}
             className={`flex items-center space-x-2 px-4 py-2 rounded-xl btn-ai text-[13.5px] font-semibold shadow-[0_0_15px_rgba(14,165,233,0.25)] ${
@@ -327,7 +344,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onSelectStock, onNav
               </thead>
               <tbody className="divide-y divide-white/[0.03]">
                 {moverList.map((stock) => {
-                  const isUp = stock.change_1d_pct >= 0;
+                  const isUp = (stock.change_1d_pct ?? 0) >= 0;
                   return (
                     <tr
                       key={stock.symbol}
@@ -346,11 +363,14 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onSelectStock, onNav
                           isUp ? "text-accent-emerald" : "text-accent-rose"
                         }`}
                       >
-                        {isUp ? "+" : ""}
-                        {stock.change_1d_pct?.toFixed(2)}%
+                        {stock.change_1d_pct != null ? (
+                          <>{isUp ? "+" : ""}{stock.change_1d_pct.toFixed(2)}%</>
+                        ) : (
+                          "—"
+                        )}
                       </td>
                       <td className="py-3.5 text-right text-slate-400 tabular-nums">
-                        {(stock.volume / 1000000).toFixed(2)}M
+                        {stock.volume != null ? `${(stock.volume / 1000000).toFixed(2)}M` : "—"}
                       </td>
                       <td className="py-3.5 text-right">
                         <button
@@ -483,6 +503,69 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onSelectStock, onNav
             );
           })}
         </div>
+      </div>
+
+      {/* 4. Top Headlines */}
+      <div className="p-5 rounded-2xl glass-card">
+        <div className="flex items-center justify-between pb-4 border-b border-white/[0.05] mb-4">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-8 h-8 rounded-lg bg-accent-rose/10 flex items-center justify-center">
+              <Newspaper className="w-4 h-4 text-accent-rose" />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <h2 className="text-[15px] font-display font-bold text-foreground">Top Headlines</h2>
+              <InfoTooltip
+                title="Top Headlines"
+                definition="Recent headlines for today's top gainers, top losers, and most active names, fetched from the configured news provider. Headline metadata only — no commentary is fabricated."
+                decisionImpact="Use headlines to qualify odds before acting on a mover; confirm a catalyst in the research desk news feed before sizing into strength."
+              />
+            </div>
+          </div>
+          <span className="text-xs text-slate-400 font-mono">Provider feed · Meta only</span>
+        </div>
+
+        {newsLoading ? (
+          <div className="space-y-2">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-16 rounded-xl skeleton animate-pulse" />
+            ))}
+          </div>
+        ) : newsFailed || news.length === 0 ? (
+          <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.05] text-xs text-slate-400">
+            {newsFailed
+              ? "Could not reach the news provider. No headlines are being shown rather than fabricating any."
+              : "No recent headlines available for the current movers."}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {news.slice(0, 6).map((item) => (
+              <a
+                key={`${item.symbol}-${item.headline}`}
+                href={item.url || "#"}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`p-3.5 rounded-xl bg-white/[0.02] border border-white/[0.05] hover:border-accent-cyan/30 hover:bg-white/[0.04] transition-all duration-300 group ${
+                  item.url ? "" : "cursor-default pointer-events-none"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-white/[0.04] border border-white/[0.08] text-slate-400 uppercase tracking-wider">
+                    {item.symbol}
+                  </span>
+                  <div className="flex items-center gap-1 text-[10.5px] text-slate-500">
+                    <span>{item.source}</span>
+                    {item.published_at && <span>· {item.published_at.slice(0, 10)}</span>}
+                    {item.url && <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />}
+                  </div>
+                </div>
+                <p className="text-[13px] font-medium text-slate-200 leading-snug">{item.headline}</p>
+                {item.summary && (
+                  <p className="text-[12px] text-slate-400 mt-1 line-clamp-2 leading-relaxed font-light">{item.summary}</p>
+                )}
+              </a>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

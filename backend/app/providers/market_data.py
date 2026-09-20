@@ -64,22 +64,26 @@ class MarketDataProvider(BaseMarketDataProvider):
             try:
                 ticker = yf.Ticker(yf_sym)
                 fast_info = ticker.fast_info
-                curr = float(fast_info.last_price) if fast_info.last_price else idx["current_value"]
-                prev = float(fast_info.previous_close) if fast_info.previous_close else idx["previous_close"]
+                if not fast_info.last_price or not fast_info.previous_close:
+                    # No fabricated values: skip the index entirely if the live feed lacks price data.
+                    continue
+                curr = float(fast_info.last_price)
+                prev = float(fast_info.previous_close)
                 chg = curr - prev
                 chg_pct = (chg / prev) * 100 if prev > 0 else 0.0
+                high = float(fast_info.day_high) if fast_info.day_high else None
+                low = float(fast_info.day_low) if fast_info.day_low else None
                 results.append(IndexQuote(
                     symbol=idx["symbol"],
                     name=idx["name"],
                     current_value=round(curr, 2),
                     change_1d=round(chg, 2),
                     change_1d_pct=round(chg_pct, 2),
-                    high=round(float(fast_info.day_high or curr * 1.005), 2),
-                    low=round(float(fast_info.day_low or curr * 0.995), 2),
+                    high=round(high, 2) if high is not None else None,
+                    low=round(low, 2) if low is not None else None,
                     previous_close=round(prev, 2)
                 ))
             except Exception:
-                # Do not surface a curated index value as if it were current.
                 continue
         return results
 
@@ -96,23 +100,27 @@ class MarketDataProvider(BaseMarketDataProvider):
             info = ticker.fast_info
             if info.last_price is not None and not math.isnan(info.last_price):
                 curr = float(info.last_price)
-                prev = float(info.previous_close or curr)
-                chg = curr - prev
-                chg_pct = (chg / prev) * 100 if prev > 0 else 0.0
+                prev = float(info.previous_close) if info.previous_close else None
+                if prev is None or prev <= 0 or math.isnan(prev):
+                    prev = None
+                    chg = None
+                    chg_pct = None
+                else:
+                    chg = curr - prev
+                    chg_pct = (chg / prev) * 100 if prev > 0 else 0.0
 
                 # Extract company metadata if known or infer from ticker
                 name = norm
                 sector = "Equities"
                 industry = "Equities"
                 desc = f"{norm} listed on National Stock Exchange of India."
-                mcap = round((curr * 500000000) / 10000000, 2)
+                mcap = None
 
                 if ref_data:
                     name = ref_data["company_name"]
                     sector = ref_data["sector"]
                     industry = ref_data["industry"]
                     desc = ref_data["description"]
-                    mcap = ref_data["fundamentals"]["market_cap"]
                 else:
                     # Dynamically look up full info for unknown tickers
                     try:
@@ -128,6 +136,15 @@ class MarketDataProvider(BaseMarketDataProvider):
                     except Exception:
                         pass
 
+                # Market cap: use live provider value when provided, otherwise omit (never synthesize).
+                if mcap is None:
+                    try:
+                        raw_mcap = ticker.info.get("marketCap") if getattr(ticker, "info", None) else None
+                        if raw_mcap:
+                            mcap = round(raw_mcap / 10000000.0, 2)
+                    except Exception:
+                        mcap = None
+
                 now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
                 return StockQuote(
                     symbol=norm,
@@ -135,15 +152,15 @@ class MarketDataProvider(BaseMarketDataProvider):
                     sector=sector,
                     industry=industry,
                     current_price=round(curr, 2),
-                    change_1d=round(chg, 2),
-                    change_1d_pct=round(chg_pct, 2),
-                    open_price=round(float(info.open or curr), 2),
-                    high_price=round(float(info.day_high or curr), 2),
-                    low_price=round(float(info.day_low or curr), 2),
-                    previous_close=round(prev, 2),
-                    volume=float(info.last_volume or 1000000),
-                    week_52_high=round(float(info.year_high or curr * 1.2), 2),
-                    week_52_low=round(float(info.year_low or curr * 0.8), 2),
+                    change_1d=round(chg, 2) if chg is not None else None,
+                    change_1d_pct=round(chg_pct, 2) if chg_pct is not None else None,
+                    open_price=round(float(info.open), 2) if info.open else None,
+                    high_price=round(float(info.day_high), 2) if info.day_high else None,
+                    low_price=round(float(info.day_low), 2) if info.day_low else None,
+                    previous_close=round(prev, 2) if prev else None,
+                    volume=float(info.last_volume) if info.last_volume else None,
+                    week_52_high=round(float(info.year_high), 2) if info.year_high else None,
+                    week_52_low=round(float(info.year_low), 2) if info.year_low else None,
                     market_cap=mcap,
                     description=desc,
                     data_source="NSE / BSE (Real-time & Delayed 15m)",

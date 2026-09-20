@@ -50,16 +50,16 @@ export interface StockQuote {
   sector?: string;
   industry?: string;
   current_price: number;
-  change_1d: number;
-  change_1d_pct: number;
-  open_price: number;
-  high_price: number;
-  low_price: number;
-  previous_close: number;
-  volume: number;
-  week_52_high: number;
-  week_52_low: number;
-  market_cap?: number;
+  change_1d: number | null;
+  change_1d_pct: number | null;
+  open_price: number | null;
+  high_price: number | null;
+  low_price: number | null;
+  previous_close: number | null;
+  volume: number | null;
+  week_52_high: number | null;
+  week_52_low: number | null;
+  market_cap?: number | null;
   description?: string;
   data_source?: string;
   as_of?: string;
@@ -438,16 +438,16 @@ export interface MutualFundItem {
   scheme_name: string;
   amc: string;
   category: string;
-  aum_crores: number;
-  expense_ratio: number;
-  nav: number;
-  cagr_1y: number;
-  cagr_3y: number;
-  cagr_5y: number;
-  benchmark: string;
-  risk_grade: string;
-  min_sip: number;
-  exit_load: string;
+  aum_crores: number | null;
+  expense_ratio: number | null;
+  nav: number | null;
+  cagr_1y: number | null;
+  cagr_3y: number | null;
+  cagr_5y: number | null;
+  benchmark?: string | null;
+  risk_grade?: string | null;
+  min_sip?: number | null;
+  exit_load?: string | null;
   top_holdings: Array<{ symbol: string; name: string; weight: number }>;
 }
 
@@ -640,6 +640,7 @@ export interface JournalSummaryResponse {
 export const api = {
   // Market
   getMarketOverview: () => fetchJson<MarketOverviewResponse>("/market/overview"),
+  getMarketNews: () => fetchJson<any[]>("/market/news"),
   getIndices: () => fetchJson<IndexQuote[]>("/market/indices"),
   getProviderHealth: () => fetchJson<ProviderHealthResponse>("/stocks/health"),
   getBrokerHealth: () => fetchJson<any[]>("/brokers/health"),

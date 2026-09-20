@@ -9,7 +9,6 @@ import httpx
 import yfinance as yf
 
 from app.core.cache import ttl_cache
-from app.providers.multi_asset_data import BONDS_DATA
 from app.services.provenance_service import record_observation
 
 RBI_BASE = "https://www.rbi.org.in"
@@ -196,7 +195,9 @@ class RBIProvider:
         """Return individual sovereign instruments derived from RBI/NSE benchmark yields, never index proxies."""
         gsec = self._fetch_10y_gsec_yield()
         if not gsec:
-            return self._reference_bond_fallback()
+            # No curated bond fixtures: return an empty list so callers show a data-unavailable state.
+            record_observation("rbi", "gsec-bonds", None, RBI_BASE, [])
+            return []
 
         benchmark_yield = gsec["current_value"]
         now_year = datetime.now(timezone.utc).year
@@ -227,20 +228,6 @@ class RBIProvider:
             })
         record_observation("rbi", "gsec-bonds", None, gsec["source_url"], bonds)
         return bonds
-
-    def _reference_bond_fallback(self) -> List[Dict[str, Any]]:
-        """Curated sovereign/PSU bond fixtures when the benchmark yield anchor is unreachable."""
-        curated = [bond for bond in BONDS_DATA if bond.get("bond_type") == "SOVEREIGN"]
-        return [
-            {
-                **bond,
-                "data_status": "REFERENCE_FIXTURE",
-                "source": "Curated Indian reference bond metadata",
-                "source_url": "https://www.rbi.org.in/",
-                "disclaimer": "Reference-only bond fixture returned because the RBI benchmark yield anchor is unreachable. Not current market or exchange data.",
-            }
-            for bond in curated
-        ]
 
     @ttl_cache(ttl_seconds=3600)
     def get_yield_curve(self) -> Dict[str, Any]:

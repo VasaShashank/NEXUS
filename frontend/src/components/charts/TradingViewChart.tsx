@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   createChart,
   IChartApi,
@@ -12,6 +12,7 @@ import {
   AreaSeries,
   BarSeries,
   HistogramSeries,
+  Time,
 } from "lightweight-charts";
 import {
   HistoricalCandle,
@@ -137,6 +138,26 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({
 
   // Pattern detection from candles if not supplied by technicalResponse
   const patterns: CandlestickPatternAnnotation[] = technicalResponse?.patterns || [];
+
+  // Intraday candles arrive as "YYYY-MM-DD HH:MM" strings which lightweight-charts
+  // does not accept as a series Time; convert them to UTC epoch timestamps.
+  const chartCandles = useMemo(
+    () =>
+      (candles || []).map((c) => ({
+        ...c,
+        time: toChartTime(c.time),
+      })),
+    [candles]
+  );
+
+  const formattedCandles = chartCandles.map((c) => ({
+    time: c.time,
+    open: c.open,
+    high: c.high,
+    low: c.low,
+    close: c.close,
+    value: c.close,
+  }));
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -279,19 +300,11 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({
     }
 
     // 4. Populate Candles and Overlays
-    if (candles && candles.length > 0) {
-      const formattedCandles = candles.map((c) => ({
-        time: c.time,
-        open: c.open,
-        high: c.high,
-        low: c.low,
-        close: c.close,
-        value: c.close,
-      }));
+    if (chartCandles && chartCandles.length > 0) {
       mainSeries.setData(formattedCandles);
 
       if (showVolume && volumeSeries) {
-        const volumeData = candles.map((c) => ({
+        const volumeData = chartCandles.map((c) => ({
           time: c.time,
           value: c.volume,
           color: c.close >= c.open ? "rgba(16, 185, 129, 0.25)" : "rgba(244, 63, 94, 0.25)",
@@ -302,34 +315,34 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({
       // Compute & set SMA 20 data
       if (showSMA20 && sma20Series) {
         const smaData = [];
-        for (let i = 19; i < candles.length; i++) {
-          const slice = candles.slice(i - 19, i + 1);
+        for (let i = 19; i < chartCandles.length; i++) {
+          const slice = chartCandles.slice(i - 19, i + 1);
           const avg = slice.reduce((sum, item) => sum + item.close, 0) / 20;
-          smaData.push({ time: candles[i].time, value: roundTwo(avg) });
+          smaData.push({ time: chartCandles[i].time, value: roundTwo(avg) });
         }
         sma20Series.setData(smaData);
       }
 
       // Compute & set SMA 50 data
-      if (showSMA50 && sma50Series && candles.length >= 50) {
+      if (showSMA50 && sma50Series && chartCandles.length >= 50) {
         const smaData = [];
-        for (let i = 49; i < candles.length; i++) {
-          const slice = candles.slice(i - 49, i + 1);
+        for (let i = 49; i < chartCandles.length; i++) {
+          const slice = chartCandles.slice(i - 49, i + 1);
           const avg = slice.reduce((sum, item) => sum + item.close, 0) / 50;
-          smaData.push({ time: candles[i].time, value: roundTwo(avg) });
+          smaData.push({ time: chartCandles[i].time, value: roundTwo(avg) });
         }
         sma50Series.setData(smaData);
       }
 
       // Compute & set EMA 21
-      if (showEMA21 && ema21Series && candles.length >= 21) {
+      if (showEMA21 && ema21Series && chartCandles.length >= 21) {
         const k = 2 / (21 + 1);
-        let ema = candles[0].close;
+        let ema = chartCandles[0].close;
         const emaData = [];
-        for (let i = 0; i < candles.length; i++) {
-          ema = candles[i].close * k + ema * (1 - k);
+        for (let i = 0; i < chartCandles.length; i++) {
+          ema = chartCandles[i].close * k + ema * (1 - k);
           if (i >= 20) {
-            emaData.push({ time: candles[i].time, value: roundTwo(ema) });
+            emaData.push({ time: chartCandles[i].time, value: roundTwo(ema) });
           }
         }
         ema21Series.setData(emaData);
@@ -340,27 +353,27 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({
         let cumVol = 0;
         let cumPV = 0;
         const vwapData = [];
-        for (let i = 0; i < candles.length; i++) {
-          cumVol += candles[i].volume;
-          cumPV += candles[i].close * candles[i].volume;
+        for (let i = 0; i < chartCandles.length; i++) {
+          cumVol += chartCandles[i].volume;
+          cumPV += chartCandles[i].close * chartCandles[i].volume;
           if (cumVol > 0) {
-            vwapData.push({ time: candles[i].time, value: roundTwo(cumPV / cumVol) });
+            vwapData.push({ time: chartCandles[i].time, value: roundTwo(cumPV / cumVol) });
           }
         }
         vwapSeries.setData(vwapData);
       }
 
       // Compute & set Bollinger Bands
-      if (showBollinger && bbUpperSeries && bbLowerSeries && candles.length >= 20) {
+      if (showBollinger && bbUpperSeries && bbLowerSeries && chartCandles.length >= 20) {
         const upperData = [];
         const lowerData = [];
-        for (let i = 19; i < candles.length; i++) {
-          const slice = candles.slice(i - 19, i + 1);
+        for (let i = 19; i < chartCandles.length; i++) {
+          const slice = chartCandles.slice(i - 19, i + 1);
           const mean = slice.reduce((sum, item) => sum + item.close, 0) / 20;
           const variance = slice.reduce((sum, item) => sum + Math.pow(item.close - mean, 2), 0) / 20;
           const std = Math.sqrt(variance);
-          upperData.push({ time: candles[i].time, value: roundTwo(mean + 2 * std) });
-          lowerData.push({ time: candles[i].time, value: roundTwo(mean - 2 * std) });
+          upperData.push({ time: chartCandles[i].time, value: roundTwo(mean + 2 * std) });
+          lowerData.push({ time: chartCandles[i].time, value: roundTwo(mean - 2 * std) });
         }
         bbUpperSeries.setData(upperData);
         bbLowerSeries.setData(lowerData);
@@ -406,7 +419,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({
         const markers = patterns.map((p) => {
           const isBull = p.pattern_type.includes("BULLISH");
           return {
-            time: p.time,
+            time: toChartTime(p.time),
             position: isBull ? ("belowBar" as const) : ("aboveBar" as const),
             color: isBull ? "#10B981" : "#F43F5E",
             shape: isBull ? ("arrowUp" as const) : ("arrowDown" as const),
@@ -456,7 +469,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({
           lineWidth: 2,
           title: "RSI 14",
         });
-        const rsiData = computeClientRSI(candles, 14);
+        const rsiData = computeClientRSI(chartCandles, 14);
         rsiSeries.setData(rsiData);
 
         // 70 and 30 Overbought/Oversold Reference Lines
@@ -464,19 +477,21 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({
         rsiSeries.createPriceLine({ price: 30, color: "rgba(16, 185, 129, 0.5)", lineStyle: LineStyle.Dotted, title: "30 OS" });
       } else if (activeOscillator === "macd") {
         const histSeries = oscChart.addSeries(HistogramSeries, {
-          priceScaleId: "",
+          priceScaleId: "macd-hist",
+          priceFormat: { type: "price", precision: 2, minMove: 0.01 },
         });
+        oscChart.priceScale("macd-hist").applyOptions({ scaleMargins: { top: 0.65, bottom: 0 } });
         const macdLine = oscChart.addSeries(LineSeries, { color: "#0EA5E9", lineWidth: 2, title: "MACD" });
         const signalLine = oscChart.addSeries(LineSeries, { color: "#F59E0B", lineWidth: 2, title: "Signal" });
 
-        const macdResult = computeClientMACD(candles);
+        const macdResult = computeClientMACD(chartCandles);
         histSeries.setData(macdResult.histogram);
         macdLine.setData(macdResult.macd);
         signalLine.setData(macdResult.signal);
       } else if (activeOscillator === "stochastic") {
         const kSeries = oscChart.addSeries(LineSeries, { color: "#0EA5E9", lineWidth: 2, title: "%K" });
         const dSeries = oscChart.addSeries(LineSeries, { color: "#F43F5E", lineWidth: 2, title: "%D" });
-        const stochData = computeClientStochastic(candles);
+        const stochData = computeClientStochastic(chartCandles);
         kSeries.setData(stochData.k);
         dSeries.setData(stochData.d);
       }
@@ -499,10 +514,10 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({
         param.point.y < 0 ||
         param.point.y > mainHeight
       ) {
-        if (candles.length > 0) {
-          const last = candles[candles.length - 1];
+        if (chartCandles.length > 0) {
+          const last = chartCandles[chartCandles.length - 1];
           setActiveTooltip({
-            time: last.time,
+            time: String(last.time),
             open: last.open,
             high: last.high,
             low: last.low,
@@ -525,10 +540,10 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({
     });
 
     // Default tooltip to latest candle
-    if (candles.length > 0) {
-      const last = candles[candles.length - 1];
+    if (chartCandles.length > 0) {
+      const last = chartCandles[chartCandles.length - 1];
       setActiveTooltip({
-        time: last.time,
+        time: String(last.time),
         open: last.open,
         high: last.high,
         low: last.low,
@@ -770,7 +785,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({
                   }`}
                 >
                   <span>{p.pattern_name}</span>
-                  <span className="text-[9px] text-slate-400">({p.time.slice(5)})</span>
+                  <span className="text-[9px] text-slate-400">({formatPatternDate(p.time)})</span>
                 </button>
               );
             })}
@@ -858,7 +873,31 @@ function roundTwo(num: number): number {
   return Math.round((num + Number.EPSILON) * 100) / 100;
 }
 
-function computeClientRSI(candles: HistoricalCandle[], period = 14) {
+// lightweight-charts accepts only "YYYY-MM-DD" strings or UTC epoch numbers as Time.
+// Backend intraday candles use "YYYY-MM-DD HH:MM"; normalize them here.
+function toChartTime(time: string): Time {
+  const match = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$/.exec(time);
+  if (match) {
+    const [, y, m, d, hh, mm] = match.map(Number);
+    return Math.floor(Date.UTC(y, m - 1, d, hh, mm) / 1000) as Time;
+  }
+  return time as Time;
+}
+
+interface ChartCandleLike {
+  time: Time;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+function formatPatternDate(time: string): string {
+  return time.slice(0, 10);
+}
+
+function computeClientRSI(candles: ChartCandleLike[], period = 14) {
   const result = [];
   if (candles.length <= period) return [];
 
@@ -894,7 +933,7 @@ function computeClientRSI(candles: HistoricalCandle[], period = 14) {
   return result;
 }
 
-function computeClientMACD(candles: HistoricalCandle[]) {
+function computeClientMACD(candles: ChartCandleLike[]) {
   const closes = candles.map((c) => c.close);
   const times = candles.map((c) => c.time);
 
@@ -934,7 +973,7 @@ function computeClientMACD(candles: HistoricalCandle[]) {
   return { macd: macdData, signal: signalData, histogram: histData };
 }
 
-function computeClientStochastic(candles: HistoricalCandle[], period = 14) {
+function computeClientStochastic(candles: ChartCandleLike[], period = 14) {
   const kData = [];
   const dData = [];
 

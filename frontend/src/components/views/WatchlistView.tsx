@@ -197,7 +197,7 @@ export const WatchlistView: React.FC<WatchlistViewProps> = ({ onSelectStock }) =
                 </thead>
                 <tbody className="divide-y divide-white/[0.04]">
                   {currentWl.quotes.map((q) => {
-                    const isUp = q.change_1d >= 0;
+                    const isUp = (q.change_1d ?? 0) >= 0;
                     return (
                       <tr key={q.symbol} className="hover:bg-white/[0.015] transition-colors">
                         <td className="py-3 px-4 font-bold text-foreground">
@@ -224,7 +224,7 @@ export const WatchlistView: React.FC<WatchlistViewProps> = ({ onSelectStock }) =
                             }`}
                           >
                             {isUp ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                            <span>{q.change_1d_pct > 0 ? `+${q.change_1d_pct}%` : `${q.change_1d_pct}%`}</span>
+                            <span>{q.change_1d_pct != null ? (q.change_1d_pct > 0 ? `+${q.change_1d_pct}%` : `${q.change_1d_pct}%`) : "—"}</span>
                           </span>
                         </td>
                         <td className="py-3 px-4 text-right font-mono text-slate-400">

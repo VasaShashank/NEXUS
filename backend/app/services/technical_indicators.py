@@ -194,8 +194,16 @@ class TechnicalIndicatorsService:
                         historical_observation="Historical distribution sequence observed during sustained liquidations."
                     ))
 
-        # Return latest patterns first, max 10
-        return patterns[-10:]
+        # Return every detected pattern (newest last in list order, deduplicated)
+        seen = set()
+        unique = []
+        for p in reversed(patterns):
+            key = (p.time, p.pattern_name)
+            if key not in seen:
+                seen.add(key)
+                unique.append(p)
+        unique.reverse()
+        return unique
 
     @staticmethod
     def calculate_all(

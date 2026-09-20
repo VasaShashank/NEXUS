@@ -17,14 +17,15 @@ class ForecastPoint(BaseModel):
 
 class TrendForecastResponse(BaseModel):
     symbol: str
-    current_price: float
+    current_price: Optional[float] = None
     model_name: str = "ARIMA(1,1,1) Autoregressive Time-Series & OLS Trend Channel"
-    trend_outlook: str  # BULLISH_TREND, BEARISH_TREND, SIDEWAYS_CONSOLIDATION
-    trend_slope_pct: float
+    trend_outlook: str  # BULLISH_TREND, BEARISH_TREND, SIDEWAYS_CONSOLIDATION, UNAVAILABLE
+    trend_slope_pct: Optional[float] = None
     aic: Optional[float] = None
     bic: Optional[float] = None
-    historical_volatility_annualized: float
-    forecast_points: List[ForecastPoint]
+    historical_volatility_annualized: Optional[float] = None
+    forecast_points: List[ForecastPoint] = []
+    unavailable_reason: Optional[str] = None
     methodology_note: str = (
         "Statistical expectation estimated via autoregressive integrated moving average (ARIMA) "
         "and empirical volatility dispersion. Prediction intervals represent Gaussian 95% confidence bands."

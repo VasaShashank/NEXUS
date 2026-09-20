@@ -13,7 +13,6 @@ import { AiStudioView } from "@/components/views/AiStudioView";
 import { JournalView } from "@/components/views/JournalView";
 import { SimulatorsView } from "@/components/views/SimulatorsView";
 import { SettingsView } from "@/components/views/SettingsView";
-import { MarketsView } from "@/components/views/MarketsView";
 // Phase 2: Multi-Asset, Intelligence & Analytics Views
 import { StockCompareView } from "@/components/views/StockCompareView";
 import { FundsView } from "@/components/views/FundsView";
@@ -84,9 +83,6 @@ export default function AppShell() {
               onSelectStock={handleSelectStock}
               onNavigate={setCurrentView}
             />
-          )}
-          {currentView === "markets" && (
-            <MarketsView onSelectStock={handleSelectStock} />
           )}
           {currentView === "screener" && (
             <ScreenerView onSelectStock={handleSelectStock} />

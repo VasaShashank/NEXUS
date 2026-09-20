@@ -11,15 +11,15 @@ class StockQuote(BaseModel):
     sector: Optional[str] = None
     industry: Optional[str] = None
     current_price: float
-    change_1d: float
-    change_1d_pct: float
-    open_price: float
-    high_price: float
-    low_price: float
-    previous_close: float
-    volume: float
-    week_52_high: float
-    week_52_low: float
+    change_1d: Optional[float] = None
+    change_1d_pct: Optional[float] = None
+    open_price: Optional[float] = None
+    high_price: Optional[float] = None
+    low_price: Optional[float] = None
+    previous_close: Optional[float] = None
+    volume: Optional[float] = None
+    week_52_high: Optional[float] = None
+    week_52_low: Optional[float] = None
     market_cap: Optional[float] = None
     description: Optional[str] = None
     data_source: Optional[str] = "NSE/BSE Delayed 15m"
@@ -34,8 +34,8 @@ class IndexQuote(BaseModel):
     current_value: float
     change_1d: float
     change_1d_pct: float
-    high: float
-    low: float
+    high: Optional[float] = None
+    low: Optional[float] = None
     previous_close: float
 
 
@@ -150,7 +150,7 @@ class FundamentalData(BaseModel):
     total_debt: Optional[float] = None
     free_cash_flow: Optional[float] = None
     promoter_holding: Optional[float] = None
-    promoter_pledge_pct: Optional[float] = 0.0
+    promoter_pledge_pct: Optional[float] = None
     fii_holding: Optional[float] = None
     dii_holding: Optional[float] = None
     rsi_14: Optional[float] = None

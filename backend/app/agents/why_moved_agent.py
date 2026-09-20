@@ -86,8 +86,20 @@ class WhyMovedAgent:
 
         chg = q["change_1d_pct"]
         vol = q["volume"]
-        avg_vol = 5000000.0
-        vol_ratio = round(vol / max(1.0, avg_vol), 2)
+
+        # Real 20-day average volume from live history (never a hardcoded baseline)
+        avg_vol = None
+        try:
+            hist_candles = MarketService.get_historical_candles(norm, "1M")
+            if hist_candles:
+                recent = hist_candles[-20:]
+                vols = [c.volume for c in recent if c.volume]
+                if vols:
+                    avg_vol = sum(vols) / len(vols)
+        except Exception:
+            avg_vol = None
+
+        vol_ratio = round(vol / avg_vol, 2) if (avg_vol and avg_vol > 0 and vol) else None
 
         # Get sector & index context
         overview = MarketService.get_market_overview()
@@ -108,19 +120,26 @@ class WhyMovedAgent:
         factors: List[WhyMovedFactor] = []
 
         # 1. Volume Factor
-        if vol_ratio > 1.4:
+        if vol_ratio is None:
+            factors.append(WhyMovedFactor(
+                factor_name="Volume Context",
+                category="VOLUME",
+                impact="NEUTRAL",
+                description="Volume data unavailable: no live 20-day average or current volume could be retrieved, so no surge inference is made."
+            ))
+        elif vol_ratio > 1.4:
             factors.append(WhyMovedFactor(
                 factor_name="Elevated Institutional Volume",
                 category="VOLUME",
                 impact="POSITIVE" if chg > 0 else "NEGATIVE",
-                description=f"Trading volume surged to {vol_ratio}x historical 20-day average, signaling strong institutional participation."
+                description=f"Trading volume was {vol_ratio}x the real 20-day average, suggesting possible institutional activity."
             ))
         else:
             factors.append(WhyMovedFactor(
                 factor_name="Standard Daily Liquidity",
                 category="VOLUME",
                 impact="NEUTRAL",
-                description="Trading volume remained within normal daily parameters without signs of forced liquidation or block deals."
+                description="Trading volume remained within normal daily parameters relative to the real 20-day average."
             ))
 
         # 2. Sector & Benchmark Beta
@@ -147,10 +166,11 @@ class WhyMovedAgent:
 
         # Synthesis
         direction_word = "rallied" if chg > 0 else "retreated"
+        vol_txt = f"{vol_ratio:.2f}x real 20-day average volume" if vol_ratio is not None else "volume context unavailable"
         interp = (
             f"{q['company_name']} ({norm}) {direction_word} {chg:+,.2f}% today. "
             f"The movement was primarily driven by {'sector-wide tailwinds' if sec_change > 0 else 'sector consolidation'} "
-            f"coupled with {vol_ratio}x relative volume. "
+            f"coupled with {vol_txt}. "
             f"{'Positive catalysts around strategic execution reinforced buying pressure.' if chg > 0 else 'Broader profit booking and macro caution tempered sentiment.'}"
         )
 

@@ -225,7 +225,7 @@ export const FundsView: React.FC<FundsViewProps> = ({ onSelectStock }) => {
                   </div>
                   <div className="text-right">
                     <span className="text-xs text-slate-500 block">Direct NAV</span>
-                    <span className="text-base font-bold font-mono text-foreground">₹{fund.nav.toFixed(2)}</span>
+                    <span className="text-base font-bold font-mono text-foreground">{fund.nav !== null ? `₹${fund.nav.toFixed(2)}` : "Data unavailable"}</span>
                   </div>
                 </div>
 
@@ -233,15 +233,15 @@ export const FundsView: React.FC<FundsViewProps> = ({ onSelectStock }) => {
                 <div className="grid grid-cols-3 gap-2 p-2.5 rounded-lg bg-white/[0.02] border border-white/[0.05] text-center text-[11px]">
                   <div>
                     <span className="text-slate-500 block">1Y Return</span>
-                    <span className="font-bold text-accent-emerald">+{fund.cagr_1y}%</span>
+                    <span className="font-bold text-accent-emerald">{fund.cagr_1y !== null && fund.cagr_1y !== undefined ? `+${fund.cagr_1y}%` : "Data unavailable"}</span>
                   </div>
                   <div>
                     <span className="text-slate-500 block">3Y CAGR</span>
-                    <span className="font-bold text-accent-emerald">+{fund.cagr_3y}%</span>
+                    <span className="font-bold text-accent-emerald">{fund.cagr_3y !== null && fund.cagr_3y !== undefined ? `+${fund.cagr_3y}%` : "Data unavailable"}</span>
                   </div>
                   <div>
                     <span className="text-slate-500 block">5Y CAGR</span>
-                    <span className="font-bold text-accent-emerald">+{fund.cagr_5y}%</span>
+                    <span className="font-bold text-accent-emerald">{fund.cagr_5y !== null && fund.cagr_5y !== undefined ? `+${fund.cagr_5y}%` : "Data unavailable"}</span>
                   </div>
                 </div>
 
@@ -249,32 +249,36 @@ export const FundsView: React.FC<FundsViewProps> = ({ onSelectStock }) => {
                 <div className="grid grid-cols-3 gap-2 text-[11px] pt-1">
                   <div>
                     <span className="text-slate-500 block">AUM</span>
-                    <span className="font-semibold text-slate-200">₹{(fund.aum_crores / 1000).toFixed(1)}k Cr</span>
+                    <span className="font-semibold text-slate-200">{fund.aum_crores ? `₹${(fund.aum_crores / 1000).toFixed(1)}k Cr` : "Data unavailable"}</span>
                   </div>
                   <div>
                     <span className="text-slate-500 block">Expense Ratio</span>
-                    <span className="font-semibold text-slate-200">{fund.expense_ratio}%</span>
+                    <span className="font-semibold text-slate-200">{fund.expense_ratio ? `${fund.expense_ratio}%` : "Data unavailable"}</span>
                   </div>
                   <div>
                     <span className="text-slate-500 block">Risk Grade</span>
-                    <span className="font-semibold text-amber-400">{fund.risk_grade}</span>
+                    <span className="font-semibold text-amber-400">{fund.risk_grade ?? "Data unavailable"}</span>
                   </div>
                 </div>
 
                 {/* Top Holdings preview */}
                 <div className="pt-2 border-t border-white/[0.04] space-y-1.5">
                   <span className="text-[11px] font-medium text-slate-400 block">Top Scheme Holdings:</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {fund.top_holdings.map((h) => (
-                      <button
-                        key={h.symbol}
-                        onClick={() => onSelectStock && onSelectStock(h.symbol)}
-                        className="px-2 py-0.5 rounded bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.06] text-[10px] text-slate-300 transition-colors"
-                      >
-                        {h.name} <span className="text-slate-500 font-mono">({h.weight}%)</span>
-                      </button>
-                    ))}
-                  </div>
+                  {fund.top_holdings && fund.top_holdings.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {fund.top_holdings.map((h) => (
+                        <button
+                          key={h.symbol}
+                          onClick={() => onSelectStock && onSelectStock(h.symbol)}
+                          className="px-2 py-0.5 rounded bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.06] text-[10px] text-slate-300 transition-colors"
+                        >
+                          {h.name} <span className="text-slate-500 font-mono">({h.weight}%)</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-[11px] text-slate-500">Data unavailable — no live scheme-level holdings feed is configured.</span>
+                  )}
                 </div>
               </div>
             ))}

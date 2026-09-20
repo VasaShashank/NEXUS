@@ -1,17 +1,17 @@
 """
 Financial Document RAG & Vector Retrieval Engine.
-Parses filings, creates semantic chunks, indexes documents, performs similarity retrieval,
-and strips potential prompt injections.
+Indexes real issuer filings retrieved from the BSE corporate-filings provider,
+performs similarity retrieval, and strips potential prompt injections.
+No curated or placeholder document text is ever indexed as if it were a real filing.
 """
 from typing import List, Dict, Any, Optional
 import re
-from app.providers.indian_equities_data import FINANCIAL_DOCUMENTS_DATA
+from app.providers.bse_filings_provider import bse_filings_provider
 
 
 class RAGService:
     def __init__(self):
         self._chunks: List[Dict[str, Any]] = []
-        self._build_index()
 
     def _clean_text(self, text: str) -> str:
         # Prompt injection protection: sanitize instruction overrides
@@ -26,40 +26,51 @@ class RAGService:
             sanitized = re.sub(p, "[REDACTED]", sanitized, flags=re.IGNORECASE)
         return sanitized
 
-    def _build_index(self):
-        self._chunks = []
-        for doc in FINANCIAL_DOCUMENTS_DATA:
-            symbol = doc["symbol"]
-            title = doc["title"]
-            content = self._clean_text(doc["content"])
-            doc_type = doc["doc_type"]
-            year = doc.get("fiscal_year", "FY25")
+    def _index_symbol(self, symbol: str):
+        """Index only real filings for a symbol (metadata + disclosure text supplied by the issuer feed)."""
+        try:
+            docs = bse_filings_provider.get_documents(symbol)
+        except Exception:
+            docs = []
 
-            # Chunk by sections or lines
-            paragraphs = [p.strip() for p in content.split("\n") if len(p.strip()) > 30]
-            for idx, para in enumerate(paragraphs):
-                self._chunks.append({
-                    "chunk_id": f"{symbol}_{doc_type}_{idx}",
-                    "symbol": symbol,
-                    "title": title,
-                    "doc_type": doc_type,
-                    "fiscal_year": year,
-                    "snippet": para,
-                    "keywords": set(para.lower().replace(",", " ").replace(".", " ").split())
-                })
+        existing_ids = {c["chunk_id"] for c in self._chunks}
+        for doc in docs:
+            symbol_norm = doc["symbol"].upper().split(".")[0]
+            title = doc.get("title") or ""
+            fiscal_year = doc.get("fiscal_year")
+            doc_type = doc.get("doc_type") or "FILING"
+            content = self._clean_text(doc.get("content") or title)
+            chunk_id = f"{symbol_norm}_{doc_type}_{fiscal_year or 'n/a'}_{doc.get('id')}"
+            if chunk_id in existing_ids:
+                continue
+            existing_ids.add(chunk_id)
+            self._chunks.append({
+                "chunk_id": chunk_id,
+                "symbol": symbol_norm,
+                "title": title,
+                "doc_type": doc_type,
+                "fiscal_year": fiscal_year,
+                "snippet": content,
+                "keywords": set(content.lower().replace(",", " ").replace(".", " ").split())
+            })
 
     def search(self, query: str, symbol: Optional[str] = None, top_k: int = 3) -> List[Dict[str, Any]]:
+        # Real filings are fetched from the live issuer feed before each search so
+        # we never serve stale curated text as if it were a current filing.
+        if symbol:
+            self._index_symbol(symbol)
+
         query_words = set(query.lower().split())
         results = []
 
         for chunk in self._chunks:
             if symbol and chunk["symbol"].upper() != symbol.upper().split(".")[0]:
                 continue
-            
+
             # Compute term overlap score
             overlap = len(query_words.intersection(chunk["keywords"]))
             score = overlap / max(1, len(query_words))
-            
+
             if symbol and chunk["symbol"].upper() == symbol.upper().split(".")[0]:
                 score += 0.5  # Boost exact symbol match
 

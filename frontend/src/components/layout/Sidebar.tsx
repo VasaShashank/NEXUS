@@ -3,7 +3,6 @@
 import React, { useState } from "react";
 import {
   LayoutDashboard,
-  Globe2,
   Filter,
   LineChart,
   Briefcase,
@@ -68,15 +67,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate }) => 
     {
       label: "MARKETS",
       items: [
-        {
-          id: "markets",
-          label: "Markets",
-          icon: Globe2,
-          technicalDescription:
-            "Tracks broad-market and sectoral indices (Nifty Bank, IT, Auto, Pharma) with intraday percentage changes and technical breadth.",
-          decisionImpact:
-            "Identifies sectoral rotation. Capital flows into leading sectors first; trade stocks within the strongest sectors to maximize momentum and win rate.",
-        },
         {
           id: "screener",
           label: "Screener",

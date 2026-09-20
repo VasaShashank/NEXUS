@@ -390,7 +390,6 @@ class MarketService:
     @ttl_cache(ttl_seconds=86400)
     def get_fundamentals(symbol: str) -> Optional[FundamentalData]:
         norm = symbol.upper().split(".")[0]
-        data = INDIAN_STOCKS_DATA.get(norm)
         # Dynamically fetch fundamentals from yfinance for any stock.
         yf_sym = f"{norm}.NS" if not norm.endswith(".NS") else norm
         try:
@@ -404,27 +403,16 @@ class MarketService:
                 pb = round(float(info["priceToBook"]), 2) if info.get("priceToBook") else None
                 ev_ebitda = round(float(info["enterpriseToEbitda"]), 2) if info.get("enterpriseToEbitda") else None
                 roe = round(float(info["returnOnEquity"]) * 100, 2) if info.get("returnOnEquity") else None
-                de = round(float(info["debtToEquity"]) / 100, 2) if info.get("debtToEquity") else 0.0
+                de = round(float(info["debtToEquity"]) / 100, 2) if info.get("debtToEquity") else None
                 div_yield = round(float(info["dividendYield"]) * 100, 2) if info.get("dividendYield") else None
                 rev_growth = round(float(info["revenueGrowth"]) * 100, 2) if info.get("revenueGrowth") else None
                 profit_growth = round(float(info["earningsGrowth"]) * 100, 2) if info.get("earningsGrowth") else None
                 eps = round(float(info["trailingEps"]), 2) if info.get("trailingEps") else None
                 op_margin = round(float(info["operatingMargins"]) * 100, 2) if info.get("operatingMargins") else None
                 net_margin = round(float(info["profitMargins"]) * 100, 2) if info.get("profitMargins") else None
-                debt = round(float(info["totalDebt"]) / 10000000.0, 2) if info.get("totalDebt") else 0.0
+                debt = round(float(info["totalDebt"]) / 10000000.0, 2) if info.get("totalDebt") else None
                 fcf = round(float(info["freeCashflow"]) / 10000000.0, 2) if info.get("freeCashflow") else None
-                insiders = round(float(info["heldPercentInsiders"]) * 100, 2) if info.get("heldPercentInsiders") else 0.0
-                reference = (data or {}).get("fundamentals", {})
-                if reference:
-                    roe = roe if roe is not None else reference.get("roe")
-                    de = de if de is not None else reference.get("debt_to_equity", 0.0)
-                    rev_growth = rev_growth if rev_growth is not None else reference.get("revenue_growth_yoy")
-                    profit_growth = profit_growth if profit_growth is not None else reference.get("profit_growth_yoy")
-                    eps = eps if eps is not None else reference.get("eps")
-                    op_margin = op_margin if op_margin is not None else reference.get("operating_margin")
-                    net_margin = net_margin if net_margin is not None else reference.get("net_margin")
-                    fcf = fcf if fcf is not None else reference.get("free_cash_flow")
-                    insiders = insiders if insiders is not None else reference.get("promoter_holding", 0.0)
+                insiders = round(float(info["heldPercentInsiders"]) * 100, 2) if info.get("heldPercentInsiders") else None
                 return FundamentalData(
                     symbol=norm,
                     market_cap=mcap_cr,
@@ -432,7 +420,7 @@ class MarketService:
                     pb_ratio=pb,
                     ev_to_ebitda=ev_ebitda,
                     roe=roe,
-                    roce=None if not reference else reference.get("roce"),
+                    roce=None,
                     debt_to_equity=de,
                     dividend_yield=div_yield,
                     revenue_growth_yoy=rev_growth,
@@ -443,10 +431,10 @@ class MarketService:
                     total_debt=debt,
                     free_cash_flow=fcf,
                     promoter_holding=insiders,
-                    promoter_pledge_pct=0.0,
-                    fii_holding=None if not reference else reference.get("fii_holding"),
-                    dii_holding=None if not reference else reference.get("dii_holding"),
-                    rsi_14=50.0,
+                    promoter_pledge_pct=None,
+                    fii_holding=None,
+                    dii_holding=None,
+                    rsi_14=None,
                     source="NSE / BSE Exchange Filings (via Yahoo Finance API)",
                     as_of_date=datetime.now(timezone.utc).strftime("%Y-%m"),
                     data_status="SOURCED_PROVIDER",
@@ -455,36 +443,7 @@ class MarketService:
         except Exception:
             pass
 
-        if data and data.get("fundamentals"):
-            fund = data["fundamentals"]
-            return FundamentalData(
-                symbol=norm,
-                market_cap=fund.get("market_cap"),
-                pe_ratio=fund.get("pe_ratio"),
-                pb_ratio=fund.get("pb_ratio"),
-                ev_to_ebitda=fund.get("ev_to_ebitda"),
-                roe=fund.get("roe"),
-                roce=fund.get("roce"),
-                debt_to_equity=fund.get("debt_to_equity"),
-                dividend_yield=fund.get("dividend_yield"),
-                revenue_growth_yoy=fund.get("revenue_growth_yoy"),
-                profit_growth_yoy=fund.get("profit_growth_yoy"),
-                eps=fund.get("eps"),
-                operating_margin=fund.get("operating_margin"),
-                net_margin=fund.get("net_margin"),
-                total_debt=fund.get("total_debt"),
-                free_cash_flow=fund.get("free_cash_flow"),
-                promoter_holding=fund.get("promoter_holding"),
-                promoter_pledge_pct=fund.get("promoter_pledge_pct", 0.0),
-                fii_holding=fund.get("fii_holding"),
-                dii_holding=fund.get("dii_holding"),
-                rsi_14=fund.get("rsi_14"),
-                source=fund.get("source") or "Curated Indian reference fundamentals",
-                as_of_date=fund.get("as_of_date") or "Reference period",
-                data_status="REFERENCE_FUNDAMENTALS",
-                source_url="https://www.bseindia.com/corporates/ann.html",
-            )
-
+        # No curated fundamental fallback: callers must show Data unavailable.
         return None
 
     @staticmethod
@@ -640,43 +599,47 @@ class MarketService:
             if not fund_response:
                 return None
             fund = fund_response.model_dump()
-            distance_from_high = ((quote.current_price / quote.week_52_high) - 1) * 100 if quote.week_52_high > 0 else None
-            distance_from_low = ((quote.current_price / quote.week_52_low) - 1) * 100 if quote.week_52_low > 0 else None
+            distance_from_high = ((quote.current_price / quote.week_52_high) - 1) * 100 if quote.week_52_high else None
+            distance_from_low = ((quote.current_price / quote.week_52_low) - 1) * 100 if quote.week_52_low else None
 
-            # Filter checks
+            def _fund_val(key: str) -> Optional[float]:
+                val = fund.get(key)
+                return val if val is not None else None
+
+            # Filter checks (a metric with no live value never passes a strict numeric filter)
             if filters.sector and filters.sector.lower() not in (quote.sector or "").lower():
                 return None
-            if filters.min_market_cap and fund.get("market_cap", 0) < filters.min_market_cap:
+            if filters.min_market_cap is not None and (_fund_val("market_cap") is None or _fund_val("market_cap") < filters.min_market_cap):
                 return None
-            if filters.max_market_cap and fund.get("market_cap", 0) > filters.max_market_cap:
+            if filters.max_market_cap is not None and (_fund_val("market_cap") is None or _fund_val("market_cap") > filters.max_market_cap):
                 return None
-            if filters.min_pe and fund.get("pe_ratio", 0) < filters.min_pe:
+            if filters.min_pe is not None and (_fund_val("pe_ratio") is None or _fund_val("pe_ratio") < filters.min_pe):
                 return None
-            if filters.max_pe and fund.get("pe_ratio", 0) > filters.max_pe:
+            if filters.max_pe is not None and (_fund_val("pe_ratio") is None or _fund_val("pe_ratio") > filters.max_pe):
                 return None
-            if filters.min_roe and fund.get("roe", 0) < filters.min_roe:
+            if filters.min_roe is not None and (_fund_val("roe") is None or _fund_val("roe") < filters.min_roe):
                 return None
-            if filters.min_roce and fund.get("roce", 0) < filters.min_roce:
+            if filters.min_roce is not None and (_fund_val("roce") is None or _fund_val("roce") < filters.min_roce):
                 return None
-            if filters.min_revenue_growth and fund.get("revenue_growth_yoy", 0) < filters.min_revenue_growth:
+            if filters.min_revenue_growth is not None and (_fund_val("revenue_growth_yoy") is None or _fund_val("revenue_growth_yoy") < filters.min_revenue_growth):
                 return None
-            if filters.min_profit_growth and fund.get("profit_growth_yoy", 0) < filters.min_profit_growth:
+            if filters.min_profit_growth is not None and (_fund_val("profit_growth_yoy") is None or _fund_val("profit_growth_yoy") < filters.min_profit_growth):
                 return None
-            if filters.min_operating_margin and fund.get("operating_margin", 0) < filters.min_operating_margin:
+            if filters.min_operating_margin is not None and (_fund_val("operating_margin") is None or _fund_val("operating_margin") < filters.min_operating_margin):
                 return None
             if filters.max_distance_from_52w_high is not None and (distance_from_high is None or distance_from_high > filters.max_distance_from_52w_high):
                 return None
             if filters.min_distance_from_52w_low is not None and (distance_from_low is None or distance_from_low < filters.min_distance_from_52w_low):
                 return None
-            if filters.min_volume is not None and quote.volume < filters.min_volume:
+            if filters.min_volume is not None and (quote.volume is None or quote.volume < filters.min_volume):
                 return None
-            if filters.max_debt_equity and fund.get("debt_to_equity", 0) > filters.max_debt_equity:
+            if filters.max_debt_equity is not None and (_fund_val("debt_to_equity") is None or _fund_val("debt_to_equity") > filters.max_debt_equity):
                 return None
-            if filters.min_dividend_yield and fund.get("dividend_yield", 0) < filters.min_dividend_yield:
+            if filters.min_dividend_yield is not None and (_fund_val("dividend_yield") is None or _fund_val("dividend_yield") < filters.min_dividend_yield):
                 return None
-            if filters.min_rsi and fund.get("rsi_14", 50) < filters.min_rsi:
+            if filters.min_rsi is not None and (_fund_val("rsi_14") is None or _fund_val("rsi_14") < filters.min_rsi):
                 return None
-            if filters.max_rsi and fund.get("rsi_14", 50) > filters.max_rsi:
+            if filters.max_rsi is not None and (_fund_val("rsi_14") is None or _fund_val("rsi_14") > filters.max_rsi):
                 return None
 
             technical_metrics = MarketService._technical_screen_metrics(sym, benchmark_candles) if needs_technical_metrics else {}
