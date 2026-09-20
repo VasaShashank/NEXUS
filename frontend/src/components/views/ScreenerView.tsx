@@ -31,6 +31,7 @@ export const ScreenerView: React.FC<ScreenerViewProps> = ({ onSelectStock }) => 
   const [sector, setSector] = useState<string>("");
   const [naturalQuery, setNaturalQuery] = useState<string>("");
   const [parsedConditions, setParsedConditions] = useState<string[]>([]);
+  const [parseWarning, setParseWarning] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<string>("market_cap");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [lastRefreshed, setLastRefreshed] = useState<string | null>(null);
@@ -75,6 +76,7 @@ export const ScreenerView: React.FC<ScreenerViewProps> = ({ onSelectStock }) => 
     try {
       const parsed = await api.parseScreenerQuery(naturalQuery);
       const filters = parsed.filters;
+      if (filters.min_market_cap !== undefined) setMinMcap(String(filters.min_market_cap));
       if (filters.min_roe !== undefined) setMinRoe(String(filters.min_roe));
       if (filters.min_roce !== undefined) setMinRoce(String(filters.min_roce));
       if (filters.max_pe !== undefined) setMaxPe(String(filters.max_pe));
@@ -82,8 +84,14 @@ export const ScreenerView: React.FC<ScreenerViewProps> = ({ onSelectStock }) => 
       if (filters.min_revenue_growth !== undefined) setMinRevenueGrowth(String(filters.min_revenue_growth));
       if (filters.min_profit_growth !== undefined) setMinProfitGrowth(String(filters.min_profit_growth));
       if (filters.min_operating_margin !== undefined) setMinOperatingMargin(String(filters.min_operating_margin));
+      if (filters.min_rsi !== undefined) setMinRsi(String(filters.min_rsi));
+      if (filters.max_rsi !== undefined) setMaxRsi(String(filters.max_rsi));
+      if (filters.min_volume !== undefined) setMinVolume(String(filters.min_volume));
+      if (filters.max_distance_from_52w_high !== undefined) setMaxDistanceHigh(String(filters.max_distance_from_52w_high));
+      if (filters.min_distance_from_52w_low !== undefined) setMinDistanceLow(String(filters.min_distance_from_52w_low));
       if (filters.sector !== undefined) setSector(String(filters.sector));
       setParsedConditions(parsed.matched_conditions);
+      setParseWarning(parsed.unparsed ? "No explicit conditions recognized. Try something like \"ROE above 20, PE below 25, debt below 0.5\"." : null);
       window.setTimeout(runScreen, 0);
     } catch (err) {
       console.warn("Screener query parsing failed:", err);
@@ -136,7 +144,7 @@ export const ScreenerView: React.FC<ScreenerViewProps> = ({ onSelectStock }) => 
 
   const exportResults = () => {
     if (!results.length) return;
-    const columns = ["symbol", "company_name", "sector", "current_price", "market_cap", "pe_ratio", "roe", "roce", "revenue_growth_yoy", "profit_growth_yoy", "debt_to_equity"];
+    const columns = ["symbol", "company_name", "sector", "current_price", "market_cap", "pe_ratio", "pb_ratio", "roe", "roce", "revenue_growth_yoy", "profit_growth_yoy", "debt_to_equity"];
     const csv = [columns.join(","), ...results.map((row) => columns.map((column) => JSON.stringify(row[column] ?? "")).join(","))].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -259,6 +267,9 @@ export const ScreenerView: React.FC<ScreenerViewProps> = ({ onSelectStock }) => 
         </div>
         {parsedConditions.length > 0 && (
           <p className="text-[11px] text-slate-400">Applied: {parsedConditions.join(" · ")}</p>
+        )}
+        {parseWarning && (
+          <p className="text-[11px] text-amber-400/90">{parseWarning}</p>
         )}
       </div>
 
@@ -433,6 +444,10 @@ export const ScreenerView: React.FC<ScreenerViewProps> = ({ onSelectStock }) => 
             <button onClick={exportResults} className="px-2 py-1.5 rounded-lg glass-pill text-[11px] text-slate-300">Export CSV</button>
           </div>
         </div>
+        <p className="mb-4 text-[11px] text-slate-500 leading-relaxed">
+          Screener universe: 24 hand-curated NSE/BSE large- and mid-cap names with reference-grade fundamentals.
+          Names outside this set can still be analyzed one at a time via Search → deep research desk.
+        </p>
         <div className="flex flex-wrap items-center gap-2 mb-4">
           <span className="text-[11px] text-slate-500">Saved:</span>
           {savedScreens.map((screen) => (
@@ -475,7 +490,9 @@ export const ScreenerView: React.FC<ScreenerViewProps> = ({ onSelectStock }) => 
                   <th className="py-2.5 font-semibold">Stock</th>
                   <th className="py-2.5 font-semibold">Sector</th>
                   <th className="py-2.5 font-semibold text-right">Price</th>
+                  <th className="py-2.5 font-semibold text-right">M-Cap (₹ Cr)</th>
                   <th className="py-2.5 font-semibold text-right">P/E Ratio</th>
+                  <th className="py-2.5 font-semibold text-right">P/B</th>
                   <th className="py-2.5 font-semibold text-right">ROE %</th>
                   <th className="py-2.5 font-semibold text-right">Debt / Eq</th>
                   <th className="py-2.5 font-semibold text-right">Action</th>
@@ -499,7 +516,13 @@ export const ScreenerView: React.FC<ScreenerViewProps> = ({ onSelectStock }) => 
                       ₹{stock.current_price?.toFixed(2)}
                     </td>
                     <td className="py-3.5 text-right tabular-nums text-slate-300">
+                      {stock.market_cap ? stock.market_cap.toLocaleString("en-IN", { maximumFractionDigits: 0 }) : "—"}
+                    </td>
+                    <td className="py-3.5 text-right tabular-nums text-slate-300">
                       {stock.pe_ratio ? stock.pe_ratio.toFixed(1) : "—"}
+                    </td>
+                    <td className="py-3.5 text-right tabular-nums text-slate-300">
+                      {stock.pb_ratio ? stock.pb_ratio.toFixed(1) : "—"}
                     </td>
                     <td className="py-3.5 text-right tabular-nums text-accent-emerald font-semibold">
                       {stock.roe ? `${stock.roe.toFixed(1)}%` : "—"}

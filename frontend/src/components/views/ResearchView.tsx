@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   TrendingUp,
   TrendingDown,
@@ -59,6 +59,17 @@ export const ResearchView: React.FC<ResearchViewProps> = ({
   );
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const tradeTicketRef = useRef<HTMLDivElement>(null);
+
+  // When the Paper Trade ticket tab activates (from the header button or the
+  // research card), bring the ticket into view.
+  useEffect(() => {
+    if (activeTab === "trade" && tradeTicketRef.current) {
+      window.setTimeout(() => {
+        tradeTicketRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 80);
+    }
+  }, [activeTab]);
 
   // Trade Ticket State
   const [orderSide, setOrderSide] = useState<"BUY" | "SELL">("BUY");
@@ -176,7 +187,7 @@ export const ResearchView: React.FC<ResearchViewProps> = ({
               </span>
               <span className="text-xs text-slate-400 font-medium">{quote.sector}</span>
             </div>
-            <p className="text-xs text-slate-400 max-w-2xl line-clamp-1">{quote.description}</p>
+            <p className="text-xs text-slate-400 max-w-2xl leading-relaxed">{quote.description}</p>
           </div>
 
           {/* Price Box */}
@@ -882,6 +893,13 @@ export const ResearchView: React.FC<ResearchViewProps> = ({
                 Verified News Catalysts
               </h3>
               <div className="space-y-4">
+                {news.length === 0 && (
+                  <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.05] text-[11px] text-slate-400 leading-relaxed">
+                    No news catalysts available for {quote.symbol} right now. The news feed sources
+                    verified exchange announcements and provider headlines; it will populate when a
+                    catalyst is detected.
+                  </div>
+                )}
                 {news.map((item, idx) => (
                   <div key={idx} className="pb-4 border-b border-white/[0.05]/60 last:border-none">
                     <div className="flex items-center space-x-2 mb-1">
@@ -924,6 +942,13 @@ export const ResearchView: React.FC<ResearchViewProps> = ({
                 Financial Filings & Document RAG Excerpts
               </h3>
               <div className="space-y-4">
+                {documents.length === 0 && (
+                  <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.05] text-[11px] text-slate-400 leading-relaxed">
+                    No issuer filings retrieved for {quote.symbol} from the BSE corporate-filings API
+                    right now. Document excerpts are sourced only from exchange disclosures — NEXUS
+                    does not fabricate filing content.
+                  </div>
+                )}
                 {documents.map((doc, idx) => (
                   <div key={idx} className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.05]">
                     <div className="flex items-center justify-between mb-2">
@@ -945,7 +970,7 @@ export const ResearchView: React.FC<ResearchViewProps> = ({
 
       {/* TAB 4: PAPER TRADE TICKET */}
       {activeTab === "trade" && (
-        <div className="max-w-xl mx-auto p-6 rounded-2xl glass-card">
+        <div ref={tradeTicketRef} className="max-w-xl mx-auto p-6 rounded-2xl glass-card">
           <h2 className="text-base font-bold text-foreground mb-1">
             Simulated Order Ticket: {quote.symbol}
           </h2>

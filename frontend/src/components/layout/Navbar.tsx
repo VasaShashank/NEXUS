@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   ChevronRight,
   Sparkles,
+  UserRound,
 } from "lucide-react";
 import { api, StockQuote } from "@/lib/api";
 
@@ -111,8 +112,6 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="hidden md:flex items-center space-x-2.5 text-xs glass-pill px-3 py-1.5 rounded-full">
           <span className="w-2 h-2 rounded-full bg-accent-emerald status-live" />
           <span className="font-medium text-slate-300">NSE Feed: Live</span>
-          <span className="text-slate-600">•</span>
-          <span className="text-slate-400">Trading Sandbox</span>
         </div>
       </div>
 
@@ -214,8 +213,8 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* User Badge */}
         <div className="flex items-center space-x-2 pl-3 border-l border-white/[0.06]">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-accent-violet/20 to-accent-cyan/10 border border-white/[0.08] flex items-center justify-center text-xs font-bold text-slate-300">
-            IT
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-accent-violet/20 to-accent-cyan/10 border border-white/[0.08] flex items-center justify-center text-slate-300">
+            <UserRound className="w-4 h-4" />
           </div>
         </div>
       </div>

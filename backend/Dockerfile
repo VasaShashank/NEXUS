@@ -18,10 +18,14 @@ COPY . .
 RUN mkdir -p /data && mkdir -p /app/.cache && chown -R 10001:10001 /data && chown -R 10001:10001 /app/.cache
 ENV DATABASE_URL=sqlite:////data/nexus.db
 
-# Run as an unprivileged user instead of root.
+# The unprivileged runtime user. NOTE: we deliberately do NOT `USER nexususer`
+# here — docker-entrypoint.py must start as root so it can chown the named
+# volume at /data (which is root-owned at mount time), then it drops to
+# nexususer (UID 10001) before execing the real command.
 RUN useradd --uid 10001 --create-home nexususer
-USER nexususer
 
 EXPOSE 8000
+
+ENTRYPOINT ["python", "/app/docker-entrypoint.py"]
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

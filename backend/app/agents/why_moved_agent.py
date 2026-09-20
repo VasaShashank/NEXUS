@@ -5,31 +5,87 @@ and news catalysts to deliver an evidence-grounded explanation.
 """
 from typing import Dict, Any, List
 from app.providers.market_data import market_data_provider
+from app.providers.indian_equities_data import INDIAN_STOCKS_DATA
 from app.services.market_service import MarketService
 from app.schemas.agent import WhyMovedResponse, WhyMovedFactor
 
 
 class WhyMovedAgent:
     @staticmethod
+    def _fallback_quote(symbol: str) -> Dict[str, Any]:
+        """Fall back to the most recent candle closes when the live quote is unavailable.
+
+        Returns an honest, labeled payload keyed by 'price_basis':
+        - 'live'       -> real-time provider quote
+        - 'candles'    -> derived from the last two historical candle closes
+        """
+        norm = symbol.upper().split(".")[0]
+
+        quote = market_data_provider.get_quote(norm)
+        if quote:
+            return {
+                "price_basis": "live",
+                "company_name": quote.company_name,
+                "sector": quote.sector,
+                "current_price": quote.current_price,
+                "change_1d": quote.change_1d,
+                "change_1d_pct": quote.change_1d_pct,
+                "volume": quote.volume,
+                "high_price": quote.high_price,
+                "low_price": quote.low_price,
+            }
+
+        candles = MarketService.get_historical_candles(norm, "1D")
+        ref = INDIAN_STOCKS_DATA.get(norm, {})
+        if candles and len(candles) >= 2:
+            last = candles[-1]
+            prev = candles[-2]
+            chg = last.close - prev.close
+            chg_pct = (chg / prev.close) * 100 if prev.close > 0 else 0.0
+            return {
+                "price_basis": "candles",
+                "company_name": ref.get("company_name", norm),
+                "sector": ref.get("sector", "Equities"),
+                "current_price": last.close,
+                "change_1d": round(chg, 2),
+                "change_1d_pct": round(chg_pct, 2),
+                "volume": float(last.volume or 0),
+                "high_price": last.high,
+                "low_price": last.low,
+            }
+
+        return {
+            "price_basis": "none",
+            "company_name": ref.get("company_name", "Data unavailable"),
+            "sector": ref.get("sector"),
+            "current_price": None,
+            "change_1d": 0.0,
+            "change_1d_pct": 0.0,
+            "volume": 0.0,
+            "high_price": None,
+            "low_price": None,
+        }
+
+    @staticmethod
     def analyze(symbol: str) -> WhyMovedResponse:
         norm = symbol.upper().split(".")[0]
-        quote = market_data_provider.get_quote(norm)
-        if not quote:
+        q = WhyMovedAgent._fallback_quote(norm)
+        if q["price_basis"] == "none" or q["current_price"] is None:
             return WhyMovedResponse(
                 symbol=norm,
-                company_name="Data unavailable",
+                company_name=q["company_name"],
                 change_1d_pct=0.0,
                 volume_surge_ratio=0.0,
                 sector_change_pct=0.0,
                 market_change_pct=0.0,
                 observed_factors=[],
-                interpretation="Data unavailable: the market provider did not return a current quote for this symbol.",
+                interpretation="Data unavailable: no current quote or historical candle data could be retrieved for this symbol.",
                 confidence_rating="LOW",
                 data_points={},
             )
 
-        chg = quote.change_1d_pct
-        vol = quote.volume
+        chg = q["change_1d_pct"]
+        vol = q["volume"]
         avg_vol = 5000000.0
         vol_ratio = round(vol / max(1.0, avg_vol), 2)
 
@@ -37,7 +93,7 @@ class WhyMovedAgent:
         overview = MarketService.get_market_overview()
         sec_change = 0.0
         for s in overview.sector_performance:
-            if quote.sector and quote.sector.lower() in s["sector"].lower():
+            if q["sector"] and q["sector"].lower() in s["sector"].lower():
                 sec_change = s["average_change_pct"]
                 break
 
@@ -70,10 +126,10 @@ class WhyMovedAgent:
         # 2. Sector & Benchmark Beta
         if abs(sec_change) > 0.5 and ((sec_change > 0 and chg > 0) or (sec_change < 0 and chg < 0)):
             factors.append(WhyMovedFactor(
-                factor_name=f"Sector Alignment ({quote.sector})",
+                factor_name=f"Sector Alignment ({q['sector']})",
                 category="SECTOR",
                 impact="POSITIVE" if sec_change > 0 else "NEGATIVE",
-                description=f"The broader {quote.sector} sector moved {sec_change:+,.2f}%, providing directional momentum to {norm}."
+                description=f"The broader {q['sector']} sector moved {sec_change:+,.2f}%, providing directional momentum to {norm}."
             ))
 
         # 3. Catalyst News Factor
@@ -92,7 +148,7 @@ class WhyMovedAgent:
         # Synthesis
         direction_word = "rallied" if chg > 0 else "retreated"
         interp = (
-            f"{quote.company_name} ({norm}) {direction_word} {chg:+,.2f}% today. "
+            f"{q['company_name']} ({norm}) {direction_word} {chg:+,.2f}% today. "
             f"The movement was primarily driven by {'sector-wide tailwinds' if sec_change > 0 else 'sector consolidation'} "
             f"coupled with {vol_ratio}x relative volume. "
             f"{'Positive catalysts around strategic execution reinforced buying pressure.' if chg > 0 else 'Broader profit booking and macro caution tempered sentiment.'}"
@@ -100,7 +156,7 @@ class WhyMovedAgent:
 
         return WhyMovedResponse(
             symbol=norm,
-            company_name=quote.company_name,
+            company_name=q["company_name"],
             change_1d_pct=chg,
             volume_surge_ratio=vol_ratio,
             sector_change_pct=sec_change,
@@ -109,9 +165,10 @@ class WhyMovedAgent:
             interpretation=interp,
             confidence_rating=confidence,
             data_points={
-                "current_price": quote.current_price,
+                "current_price": q["current_price"],
                 "volume": vol,
-                "day_high": quote.high_price,
-                "day_low": quote.low_price
+                "day_high": q["high_price"],
+                "day_low": q["low_price"],
+                "price_basis": q["price_basis"],
             }
         )

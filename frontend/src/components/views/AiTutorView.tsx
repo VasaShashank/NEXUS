@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   GraduationCap,
   BookOpen,
@@ -10,7 +10,9 @@ import {
   Sparkles,
   Calculator,
   AlertTriangle,
-  Lightbulb
+  Lightbulb,
+  Lock,
+  ArrowRight
 } from "lucide-react";
 import { ComplianceDisclaimer } from "@/components/common/ComplianceDisclaimer";
 
@@ -159,19 +161,53 @@ export const AiTutorView: React.FC = () => {
   const [selectedLessonId, setSelectedLessonId] = useState<string>("roce");
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [showAnswerFeedback, setShowAnswerFeedback] = useState<boolean>(false);
+  const [completedLessons, setCompletedLessons] = useState<string[]>([]);
+
+  // Persist completed lessons across sessions (curriculum progresses in order).
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem("nexus-tutor-completed");
+      if (stored) setCompletedLessons(JSON.parse(stored));
+    } catch {
+      setCompletedLessons([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("nexus-tutor-completed", JSON.stringify(completedLessons));
+    } catch {
+      // Ignore storage failures (private mode, full quota, etc.)
+    }
+  }, [completedLessons]);
 
   const currentLesson = LESSONS.find((l) => l.id === selectedLessonId) || LESSONS[0];
+
+  const isLessonUnlocked = (id: string): boolean => {
+    const index = LESSONS.findIndex((l) => l.id === id);
+    if (index <= 0) return true;
+    return completedLessons.includes(LESSONS[index - 1].id);
+  };
 
   const handleSelectAnswer = (index: number) => {
     setSelectedAnswer(index);
     setShowAnswerFeedback(true);
+    if (index === currentLesson.quiz.correctIndex && !completedLessons.includes(currentLesson.id)) {
+      setCompletedLessons((prev) => [...prev, currentLesson.id]);
+    }
   };
 
   const handleSwitchLesson = (id: string) => {
+    if (!isLessonUnlocked(id)) return;
     setSelectedLessonId(id);
     setSelectedAnswer(null);
     setShowAnswerFeedback(false);
   };
+
+  const currentIndex = LESSONS.findIndex((l) => l.id === currentLesson.id);
+  const nextLesson = LESSONS[currentIndex + 1];
+  const answeredCorrectly = showAnswerFeedback && selectedAnswer === currentLesson.quiz.correctIndex;
+  const progressPct = Math.round((completedLessons.length / LESSONS.length) * 100);
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -197,23 +233,52 @@ export const AiTutorView: React.FC = () => {
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block px-1">
             Curated Curriculum
           </span>
+          <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.05] mb-3">
+            <div className="flex items-center justify-between text-[11px] text-slate-400 mb-1.5">
+              <span className="font-semibold">Course Progress</span>
+              <span className="text-accent-cyan font-bold tabular-nums">{progressPct}%</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-accent-cyan to-accent-violet transition-all duration-500"
+                style={{ width: `${progressPct}%` }}
+              />
+            </div>
+            <p className="text-[10px] text-slate-500 mt-1.5">
+              Pass the checkpoint quiz of a concept to unlock the next one.
+            </p>
+          </div>
           <div className="space-y-1.5">
-            {LESSONS.map((lesson) => (
-              <button
-                key={lesson.id}
-                onClick={() => handleSwitchLesson(lesson.id)}
-                className={`w-full text-left p-3 rounded-xl border transition-all text-xs flex flex-col space-y-1 ${
-                  currentLesson.id === lesson.id
-                    ? "bg-accent-blue/15 border-accent-blue/40 text-foreground font-semibold shadow-sm"
-                    : "bg-surface-50 border-border text-slate-400 hover:text-slate-200 hover:border-white/10"
-                }`}
-              >
-                <span className="text-[10px] text-accent-cyan uppercase font-bold tracking-wider">
-                  {lesson.category}
-                </span>
-                <span className="text-xs">{lesson.title}</span>
-              </button>
-            ))}
+            {LESSONS.map((lesson) => {
+              const unlocked = isLessonUnlocked(lesson.id);
+              const done = completedLessons.includes(lesson.id);
+              return (
+                <button
+                  key={lesson.id}
+                  onClick={() => handleSwitchLesson(lesson.id)}
+                  disabled={!unlocked}
+                  className={`w-full text-left p-3 rounded-xl border transition-all text-xs flex flex-col space-y-1 ${
+                    currentLesson.id === lesson.id
+                      ? "bg-accent-blue/15 border-accent-blue/40 text-foreground font-semibold shadow-sm"
+                      : unlocked
+                      ? "bg-surface-50 border-border text-slate-400 hover:text-slate-200 hover:border-white/10"
+                      : "bg-surface-50/50 border-border/60 text-slate-600 cursor-not-allowed opacity-60"
+                  }`}
+                >
+                  <span className="flex items-center justify-between w-full">
+                    <span className="text-[10px] text-accent-cyan uppercase font-bold tracking-wider">
+                      {lesson.category}
+                    </span>
+                    {done ? (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-accent-emerald" />
+                    ) : !unlocked ? (
+                      <Lock className="w-3.5 h-3.5 text-slate-600" />
+                    ) : null}
+                  </span>
+                  <span className="text-xs">{lesson.title}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -331,6 +396,35 @@ export const AiTutorView: React.FC = () => {
                 <div className="p-3.5 rounded-lg bg-white/[0.03] border border-white/[0.08] text-xs text-slate-300 leading-relaxed">
                   <span className="font-semibold text-accent-cyan block mb-0.5">Explanation:</span>
                   {currentLesson.quiz.explanation}
+                </div>
+              )}
+
+              {answeredCorrectly && nextLesson && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-accent-emerald/10 border border-accent-emerald/25">
+                  <div className="flex items-start space-x-2.5">
+                    <CheckCircle2 className="w-4 h-4 text-accent-emerald shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-semibold text-accent-emerald">Concept mastered — locked in your progress.</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        {nextLesson.title} is now unlocked.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleSwitchLesson(nextLesson.id)}
+                    className="shrink-0 inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-lg bg-accent-emerald text-slate-950 text-xs font-bold hover:bg-emerald-400 transition-all"
+                  >
+                    <span>Start Next Concept</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
+              {answeredCorrectly && !nextLesson && (
+                <div className="p-3.5 rounded-xl bg-accent-emerald/10 border border-accent-emerald/25">
+                  <p className="text-xs font-semibold text-accent-emerald">
+                    Curriculum complete — every concept is mastered. New lessons will be added over time.
+                  </p>
                 </div>
               )}
             </div>

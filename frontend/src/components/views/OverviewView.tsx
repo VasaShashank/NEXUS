@@ -30,6 +30,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onSelectStock, onNav
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"gainers" | "losers" | "active">("gainers");
   const [providerStatus, setProviderStatus] = useState<"loading" | "live" | "unavailable" | "error">("loading");
+  const [showBrief, setShowBrief] = useState(false);
 
   const fetchOverview = async () => {
     setIsLoading(true);
@@ -110,14 +111,100 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onSelectStock, onNav
         </div>
         <div className="flex items-center space-x-2">
           <button
-            onClick={() => onNavigate("ai-research")}
-            className="flex items-center space-x-2 px-4 py-2 rounded-xl btn-ai text-[13.5px] font-semibold shadow-[0_0_15px_rgba(14,165,233,0.25)]"
+            onClick={() => setShowBrief(!showBrief)}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-xl btn-ai text-[13.5px] font-semibold shadow-[0_0_15px_rgba(14,165,233,0.25)] ${
+              showBrief ? "opacity-90" : ""
+            }`}
           >
             <Sparkles className="w-4 h-4" />
-            <span>AI Market Brief</span>
+            <span>{showBrief ? "Hide AI Market Brief" : "AI Market Brief"}</span>
           </button>
         </div>
       </div>
+
+      {/* AI Market Brief — deterministic synthesis of the overview data loaded
+          above. Rule-based (no generative model); surfaced from the same
+          sourced dataset so every figure is verifiable on this page. */}
+      {showBrief && (
+        <div className="p-5 rounded-2xl glass-card border border-accent-cyan/20 animate-float-up space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-accent-cyan" />
+              <h2 className="text-sm font-display font-bold text-foreground">Deterministic Market Brief</h2>
+              <span className="text-[10px] px-2 py-0.5 rounded bg-white/[0.04] border border-white/[0.08] text-slate-400 uppercase tracking-wider">
+                Rule-based · No generative AI
+              </span>
+            </div>
+            <span className="text-[11px] text-slate-500">Synthesized from the indices, breadth, and sectors shown below</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[13px] leading-relaxed text-slate-300">
+            <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.05] space-y-1">
+              <p className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold">Session Read</p>
+              <p>
+                Market breadth is{" "}
+                <span className={data.market_breadth.regime === "BULLISH" ? "text-accent-emerald font-semibold" : data.market_breadth.regime === "BEARISH" ? "text-accent-rose font-semibold" : "text-slate-200 font-semibold"}>
+                  {data.market_breadth.regime}
+                </span>{" "}
+                with an advance/decline ratio of {data.market_breadth.advance_decline_ratio} (
+                {data.market_breadth.advancing} advancing vs {data.market_breadth.declining} declining stocks).
+              </p>
+            </div>
+            <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.05] space-y-1">
+              <p className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold">Index Leadership</p>
+              <p>
+                {indices.length > 0 && (() => {
+                  const best = [...indices].sort((a, b) => b.change_1d_pct - a.change_1d_pct)[0];
+                  const worst = [...indices].sort((a, b) => a.change_1d_pct - b.change_1d_pct)[0];
+                  return best && worst ? (
+                    <>
+                      Leading: <span className="text-accent-emerald font-semibold">{best.name} {best.change_1d_pct >= 0 ? "+" : ""}{best.change_1d_pct?.toFixed(2)}%</span>; lagging:{" "}
+                      <span className="text-accent-rose font-semibold">{worst.name} {worst.change_1d_pct >= 0 ? "+" : ""}{worst.change_1d_pct?.toFixed(2)}%</span>.
+                    </>
+                  ) : null;
+                })()}
+              </p>
+            </div>
+            <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.05] space-y-1">
+              <p className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold">Sector Rotation</p>
+              <p>
+                {sector_performance.length > 0 ? (
+                  <>
+                    Best: <span className="text-accent-emerald font-semibold">{sector_performance[0].sector} ({sector_performance[0].average_change_pct >= 0 ? "+" : ""}{sector_performance[0].average_change_pct}%)</span>; worst:{" "}
+                    <span className="text-accent-rose font-semibold">{sector_performance[sector_performance.length - 1].sector} ({sector_performance[sector_performance.length - 1].average_change_pct >= 0 ? "+" : ""}{sector_performance[sector_performance.length - 1].average_change_pct}%)</span>.
+                  </>
+                ) : (
+                  "No sector data available for this session."
+                )}
+              </p>
+            </div>
+            <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.05] space-y-1">
+              <p className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold">Notice Movers</p>
+              <p>
+                {top_gainers.length > 0 && top_losers.length > 0 ? (
+                  <>
+                    Top gainer <span className="text-accent-emerald font-semibold">{top_gainers[0].symbol} ({"+"}{top_gainers[0].change_1d_pct?.toFixed(2)}%)</span>; top loser{" "}
+                    <span className="text-accent-rose font-semibold">{top_losers[0].symbol} ({top_losers[0].change_1d_pct?.toFixed(2)}%)</span>.
+                  </>
+                ) : (
+                  "No mover data available for this session."
+                )}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] text-slate-500">
+              Brief reflects live provider quotes scheduled to refresh automatically. Verify each signal against the research desk before acting.
+            </p>
+            <button
+              onClick={() => onNavigate("ai-research")}
+              className="shrink-0 flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-accent-cyan/15 border border-accent-cyan/30 text-accent-cyan text-xs font-semibold hover:bg-accent-cyan/25 transition-all"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Open Full Research Desk</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 1. Benchmark Indices Strip */}
       <div>

@@ -79,7 +79,9 @@ class JournalService:
             for e in entries
         ]
 
-        # Strategy performance breakdown
+        # Strategy performance breakdown — metrics are ONLY computed from
+        # journal entries that have a real recorded outcome_pnl. No fabricated
+        # default P&L, win rates, or capital bases are invented.
         strategy_buckets: Dict[str, List[JournalEntry]] = {}
         for e in entries:
             tag = e.strategy_tag or "SWING"
@@ -88,19 +90,35 @@ class JournalService:
         breakdown: List[StrategyMetric] = []
         total_pnl = 0.0
         total_wins = 0
-        total_trades = 0
+        total_outcomes = 0
+
+        def _cost_basis(item: JournalEntry) -> Optional[float]:
+            tx = item.transaction
+            if tx and tx.price and tx.quantity:
+                return tx.price * tx.quantity
+            return None
 
         for strat, items in strategy_buckets.items():
             count = len(items)
-            # Find outcomes (or assign default demo tracking)
-            strat_pnl = sum((item.outcome_pnl or 4200.0) for item in items)
-            wins = sum(1 for item in items if (item.outcome_pnl or 4200.0) > 0)
-            win_pct = round((wins / count) * 100, 1) if count > 0 else 0.0
-            avg_ret = round(strat_pnl / max(1, count * 50000.0) * 100, 2)
+            outcomes = [item for item in items if item.outcome_pnl is not None]
+            resolved = [
+                (item, float(item.outcome_pnl), _cost_basis(item))
+                for item in outcomes
+            ]
+            strat_pnl = sum(pnl for _, pnl, _ in resolved)
+            wins = sum(1 for _, pnl, _ in resolved if pnl > 0)
+            win_pct = round((wins / len(outcomes)) * 100, 1) if outcomes else 0.0
+
+            returns = [
+                (pnl / cost) * 100
+                for _, pnl, cost in resolved
+                if cost and cost > 0
+            ]
+            avg_ret = round(sum(returns) / len(returns), 2) if returns else 0.0
 
             total_pnl += strat_pnl
             total_wins += wins
-            total_trades += count
+            total_outcomes += len(outcomes)
 
             breakdown.append(StrategyMetric(
                 strategy=strat,
@@ -111,7 +129,7 @@ class JournalService:
                 avg_return_pct=avg_ret
             ))
 
-        overall_win_rate = round((total_wins / total_trades) * 100, 1) if total_trades > 0 else 70.0
+        overall_win_rate = round((total_wins / total_outcomes) * 100, 1) if total_outcomes > 0 else 0.0
 
         return JournalSummaryResponse(
             entries=entry_responses,

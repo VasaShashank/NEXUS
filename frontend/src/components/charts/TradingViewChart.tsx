@@ -425,7 +425,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({
     }
 
     // 7. Render Sub-Pane Oscillator if active
-    if (activeOscillator !== "none" && oscillatorContainerRef.current && candles.length > 14) {
+    if (activeOscillator !== "none" && oscillatorContainerRef.current) {
       const oscContainer = oscillatorContainerRef.current;
       const oscChart = createChart(oscContainer, {
         width: oscContainer.clientWidth,

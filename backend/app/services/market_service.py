@@ -5,6 +5,7 @@ and screening queries with dynamic yfinance fundamentals lookup.
 """
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import yfinance as yf
 from app.core.cache import ttl_cache, get_cached_session
 from app.providers.market_data import market_data_provider
@@ -622,7 +623,6 @@ class MarketService:
 
     @staticmethod
     def run_screener(filters: ScreenerFilterRequest) -> List[Dict[str, Any]]:
-        results = []
         symbols = list(INDIAN_STOCKS_DATA.keys())
         quotes_dict = market_data_provider.get_batch_quotes(symbols)
         needs_technical_metrics = any(value is not None for value in (
@@ -630,70 +630,71 @@ class MarketService:
             filters.min_atr_pct, filters.max_atr_pct,
         ))
         benchmark_candles = market_data_provider.get_historical_candles("^NSEI", "1Y") if needs_technical_metrics else None
-        for sym, stock_info in INDIAN_STOCKS_DATA.items():
+
+        def _row_for_symbol(sym: str) -> Optional[Dict[str, Any]]:
             quote = quotes_dict.get(sym) or market_data_provider.get_quote(sym)
             if not quote:
-                continue
+                return None
 
             fund_response = MarketService.get_fundamentals(sym)
             if not fund_response:
-                continue
+                return None
             fund = fund_response.model_dump()
             distance_from_high = ((quote.current_price / quote.week_52_high) - 1) * 100 if quote.week_52_high > 0 else None
             distance_from_low = ((quote.current_price / quote.week_52_low) - 1) * 100 if quote.week_52_low > 0 else None
 
             # Filter checks
             if filters.sector and filters.sector.lower() not in (quote.sector or "").lower():
-                continue
+                return None
             if filters.min_market_cap and fund.get("market_cap", 0) < filters.min_market_cap:
-                continue
+                return None
             if filters.max_market_cap and fund.get("market_cap", 0) > filters.max_market_cap:
-                continue
+                return None
             if filters.min_pe and fund.get("pe_ratio", 0) < filters.min_pe:
-                continue
+                return None
             if filters.max_pe and fund.get("pe_ratio", 0) > filters.max_pe:
-                continue
+                return None
             if filters.min_roe and fund.get("roe", 0) < filters.min_roe:
-                continue
+                return None
             if filters.min_roce and fund.get("roce", 0) < filters.min_roce:
-                continue
+                return None
             if filters.min_revenue_growth and fund.get("revenue_growth_yoy", 0) < filters.min_revenue_growth:
-                continue
+                return None
             if filters.min_profit_growth and fund.get("profit_growth_yoy", 0) < filters.min_profit_growth:
-                continue
+                return None
             if filters.min_operating_margin and fund.get("operating_margin", 0) < filters.min_operating_margin:
-                continue
+                return None
             if filters.max_distance_from_52w_high is not None and (distance_from_high is None or distance_from_high > filters.max_distance_from_52w_high):
-                continue
+                return None
             if filters.min_distance_from_52w_low is not None and (distance_from_low is None or distance_from_low < filters.min_distance_from_52w_low):
-                continue
+                return None
             if filters.min_volume is not None and quote.volume < filters.min_volume:
-                continue
+                return None
             if filters.max_debt_equity and fund.get("debt_to_equity", 0) > filters.max_debt_equity:
-                continue
+                return None
             if filters.min_dividend_yield and fund.get("dividend_yield", 0) < filters.min_dividend_yield:
-                continue
+                return None
             if filters.min_rsi and fund.get("rsi_14", 50) < filters.min_rsi:
-                continue
+                return None
             if filters.max_rsi and fund.get("rsi_14", 50) > filters.max_rsi:
-                continue
+                return None
 
             technical_metrics = MarketService._technical_screen_metrics(sym, benchmark_candles) if needs_technical_metrics else {}
             relative_volume = technical_metrics.get("relative_volume")
             beta = technical_metrics.get("beta")
             atr_pct = technical_metrics.get("atr_pct")
             if filters.min_relative_volume is not None and (relative_volume is None or relative_volume < filters.min_relative_volume):
-                continue
+                return None
             if filters.min_beta is not None and (beta is None or beta < filters.min_beta):
-                continue
+                return None
             if filters.max_beta is not None and (beta is None or beta > filters.max_beta):
-                continue
+                return None
             if filters.min_atr_pct is not None and (atr_pct is None or atr_pct < filters.min_atr_pct):
-                continue
+                return None
             if filters.max_atr_pct is not None and (atr_pct is None or atr_pct > filters.max_atr_pct):
-                continue
+                return None
 
-            results.append({
+            return {
                 "symbol": quote.symbol,
                 "company_name": quote.company_name,
                 "sector": quote.sector,
@@ -701,6 +702,7 @@ class MarketService:
                 "change_1d_pct": quote.change_1d_pct,
                 "market_cap": fund.get("market_cap"),
                 "pe_ratio": fund.get("pe_ratio"),
+                "pb_ratio": fund.get("pb_ratio"),
                 "roe": fund.get("roe"),
                 "roce": fund.get("roce"),
                 "revenue_growth_yoy": fund.get("revenue_growth_yoy"),
@@ -708,14 +710,28 @@ class MarketService:
                 "operating_margin": fund.get("operating_margin"),
                 "debt_to_equity": fund.get("debt_to_equity"),
                 "dividend_yield": fund.get("dividend_yield"),
-                "rsi_14": fund.get("rsi_14")
-                ,"distance_from_52w_high_pct": round(distance_from_high, 2) if distance_from_high is not None else None
-                ,"distance_from_52w_low_pct": round(distance_from_low, 2) if distance_from_low is not None else None
-                ,"volume": quote.volume
-                ,"relative_volume": round(relative_volume, 3) if relative_volume is not None else None
-                ,"beta_vs_nifty": round(beta, 3) if beta is not None else None
-                ,"atr_pct": round(atr_pct, 3) if atr_pct is not None else None
-            })
+                "rsi_14": fund.get("rsi_14"),
+                "distance_from_52w_high_pct": round(distance_from_high, 2) if distance_from_high is not None else None,
+                "distance_from_52w_low_pct": round(distance_from_low, 2) if distance_from_low is not None else None,
+                "volume": quote.volume,
+                "relative_volume": round(relative_volume, 3) if relative_volume is not None else None,
+                "beta_vs_nifty": round(beta, 3) if beta is not None else None,
+                "atr_pct": round(atr_pct, 3) if atr_pct is not None else None,
+            }
+
+        # The >200 per-symbol fundamentals lookups are network-bound (yfinance),
+        # so fetch them concurrently instead of serially — this is what made the
+        # screener take 2+ minutes and time out.
+        results: List[Dict[str, Any]] = []
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            futures = [pool.submit(_row_for_symbol, sym) for sym in symbols]
+            for future in as_completed(futures):
+                try:
+                    row = future.result()
+                except Exception:
+                    continue
+                if row:
+                    results.append(row)
 
         # Sort
         sort_key = filters.sort_by or "market_cap"
