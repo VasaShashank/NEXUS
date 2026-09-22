@@ -60,3 +60,16 @@ Working checklist for the issues reported after testing. Tick items off **only**
 - [ ] Screener: None-safe filters (no `0`/`50` defaults); note no longer claims "reference-grade fundamentals"
 - [ ] Frontend guards: ScreenerView/FundsView/api.ts types handle nulls (volume, OHLC, 52wk, NAV, CAGR)
 - [ ] Rebuild + tsc + 40/40 tests + live no-curated spot-check -> then commit/push
+
+## Batch 2026-09-22: sort, MACD, bonds, tutor, OAuth, cash pill, libraries
+- [x] Screener sort-by ignored -> root cause: sort select only set state, `useEffect(..., [])` never re-ran; added sort-change effect (mount-guarded) that re-runs the screen. Backend sort verified correct.
+- [x] MACD subpane blank -> root cause: `computeClientMACD` gated output on `i >= 26` (27+ sessions) but default 1M view has ~22 candles, so all arrays were empty (RSI/Stoch need only 14-15, which is why only MACD broke). Fix: emit from first bar + "Warming up (N of 27 sessions)" caption.
+- [x] Bonds: `market_price.toFixed(2)` crashed on null (backend sends None) -> "—" guard + `BondItem.market_price: number | null`; ladder simulator failure was silent -> visible amber error state (backend 503 preserved).
+- [x] AI Tutor 4 -> 10 lessons (P/E+PEG, RSI, MACD, Bollinger, SIP+XIRR, Beta+diversification; new "Technical Analysis" category; same quiz/unlock shape).
+- [x] OAuth login: Google OAuth foundation, config-gated — settings, User oauth columns + sqlite migration, `/auth/oauth/status|google/login|google/callback` (signed state JWT, httpx exchange, find-or-create, fragment redirect); frontend token storage + Authorization header + Navbar sign-in/out + callback capture. Returns honest 503 until GOOGLE_OAUTH_CLIENT_ID/SECRET set (new test asserts this).
+- [x] Navbar cash not decreasing -> root cause: PortfolioView orders never called AppShell.refreshBalance (only ResearchView did). Added `onTradeSuccess` prop + wiring.
+- [x] tsc clean; targeted tests 5/5 pass (fundamentals/bonds/AMFI contract tests updated to strict no-fabrication assertions + new OAuth test).
+- [x] Container rebuild done (Docker Hub TLS timeout retried) + live click-through verified: screener sort-by re-applies (pe asc lowest PE first), market overview no longer 500s on None change_1d_pct, 1M has 21 candles so MACD warm-up path active, bonds returns honest empty list, OAuth status falsy + login 503, order-flow drops Navbar cash by exactly the total, frontend serves 200.
+- [x] Full 41/41 test suite pass incl. new OAuth test.
+- [x] Frontend healthcheck moved from `localhost:3000` (resolves ::1, refused) to `127.0.0.1:3000` — both containers now healthy.
+- [x] Committed + pushed to origin/main.

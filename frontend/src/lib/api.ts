@@ -9,13 +9,57 @@ export const API_BASE_URL =
     ? "/api/v1"
     : "http://localhost:8000/api/v1");
 
+const AUTH_TOKEN_KEY = "nexus-auth-token";
+
+export function getAuthToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(AUTH_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setAuthToken(token: string): void {
+  try {
+    window.localStorage.setItem(AUTH_TOKEN_KEY, token);
+  } catch {
+    // Ignore storage failures (private mode, full quota, etc.)
+  }
+}
+
+export function clearAuthToken(): void {
+  try {
+    window.localStorage.removeItem(AUTH_TOKEN_KEY);
+  } catch {
+    // Ignore storage failures
+  }
+}
+
+/** Reads `#auth_token=` from the OAuth callback redirect, stores it, and strips it from the URL. */
+export function consumeAuthCallback(): string | null {
+  if (typeof window === "undefined") return null;
+  const match = window.location.hash.match(/auth_token=([^&]+)/);
+  if (!match) return null;
+  const token = decodeURIComponent(match[1]);
+  setAuthToken(token);
+  try {
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+  } catch {
+    // Ignore history failures
+  }
+  return token;
+}
+
 async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
+  const token = getAuthToken();
   try {
     const res = await fetch(url, {
       ...options,
       headers: {
         "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(options?.headers || {}),
       },
       cache: "no-store",
@@ -471,7 +515,7 @@ export interface BondItem {
   issuer: string;
   bond_type: string;
   face_value: number;
-  market_price: number;
+  market_price: number | null;
   coupon_rate: number;
   payment_frequency: string;
   ytm: number;
@@ -638,6 +682,25 @@ export interface JournalSummaryResponse {
 }
 
 export const api = {
+  // Auth
+  register: (payload: { email: string; password: string; full_name?: string }) =>
+    fetchJson<{ id: number; email: string; full_name?: string }>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  login: async (payload: { email: string; password: string }) => {
+    const res = await fetchJson<{ access_token: string; token_type: string }>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    setAuthToken(res.access_token);
+    return res;
+  },
+  getCurrentUser: () => fetchJson<{ id: number; email: string; full_name?: string }>("/auth/me"),
+  getOAuthStatus: () => fetchJson<{ provider: string; configured: boolean }>("/auth/oauth/status"),
+  getGoogleLoginUrl: () => `${API_BASE_URL}/auth/oauth/google/login`,
+  logout: () => clearAuthToken(),
+
   // Market
   getMarketOverview: () => fetchJson<MarketOverviewResponse>("/market/overview"),
   getMarketNews: () => fetchJson<any[]>("/market/news"),

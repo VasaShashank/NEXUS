@@ -19,9 +19,10 @@ import { InfoTooltip } from "@/components/common/InfoTooltip";
 interface PortfolioViewProps {
   onSelectStock: (symbol: string) => void;
   onNavigate: (view: string) => void;
+  onTradeSuccess?: () => void;
 }
 
-export const PortfolioView: React.FC<PortfolioViewProps> = ({ onSelectStock, onNavigate }) => {
+export const PortfolioView: React.FC<PortfolioViewProps> = ({ onSelectStock, onNavigate, onTradeSuccess }) => {
   const [portfolio, setPortfolio] = useState<PortfolioSummaryResponse | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -62,6 +63,7 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({ onSelectStock, onN
       });
       setTradeMessage(res.message);
       await fetchPortfolio();
+      if (onTradeSuccess) onTradeSuccess();
       setTimeout(() => {
         setShowOrderModal(false);
         setTradeMessage(null);

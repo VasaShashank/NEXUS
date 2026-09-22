@@ -801,7 +801,11 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({
         <div className="pt-2 border-t border-white/[0.05]">
           <div className="flex items-center justify-between text-[11px] text-slate-400 mb-1 px-1">
             <span className="font-medium text-foreground uppercase tracking-wider">{activeOscillator} (Sub-Pane)</span>
-            <span className="text-slate-500">Oscillator computed over OHLCV series</span>
+            <span className="text-slate-500">
+              {activeOscillator === "macd" && chartCandles.length > 0 && chartCandles.length < 27
+                ? `Warming up — ${chartCandles.length} of 27 sessions for a settled MACD`
+                : "Oscillator computed over OHLCV series"}
+            </span>
           </div>
           <div ref={oscillatorContainerRef} className="w-full relative" />
         </div>
@@ -958,16 +962,17 @@ function computeClientMACD(candles: ChartCandleLike[]) {
 
   for (let i = 0; i < macdValues.length; i++) {
     signal = macdValues[i] * k9 + signal * (1 - k9);
-    if (i >= 26) {
-      const hist = macdValues[i] - signal;
-      macdData.push({ time: times[i], value: roundTwo(macdValues[i]) });
-      signalData.push({ time: times[i], value: roundTwo(signal) });
-      histData.push({
-        time: times[i],
-        value: roundTwo(hist),
-        color: hist >= 0 ? "rgba(16, 185, 129, 0.4)" : "rgba(244, 63, 94, 0.4)",
-      });
-    }
+    // Emit from the first bar so short timeframes (e.g. 1M ≈ 22 daily
+    // sessions) still render; early points are EMA warm-up and the sub-pane
+    // header flags sessions < 27 as warming up.
+    const hist = macdValues[i] - signal;
+    macdData.push({ time: times[i], value: roundTwo(macdValues[i]) });
+    signalData.push({ time: times[i], value: roundTwo(signal) });
+    histData.push({
+      time: times[i],
+      value: roundTwo(hist),
+      color: hist >= 0 ? "rgba(16, 185, 129, 0.4)" : "rgba(244, 63, 94, 0.4)",
+    });
   }
 
   return { macd: macdData, signal: signalData, histogram: histData };

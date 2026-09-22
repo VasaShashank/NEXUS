@@ -19,7 +19,7 @@ import { ComplianceDisclaimer } from "@/components/common/ComplianceDisclaimer";
 interface ConceptLesson {
   id: string;
   title: string;
-  category: "Fundamentals" | "Fixed Income" | "Portfolio Risk" | "Funds & ETFs";
+  category: "Fundamentals" | "Fixed Income" | "Portfolio Risk" | "Funds & ETFs" | "Technical Analysis";
   simpleExplanation: string;
   technicalExplanation: string;
   formula: string;
@@ -153,6 +153,186 @@ const LESSONS: ConceptLesson[] = [
       correctIndex: 1,
       explanation:
         "Sharpe treats violent upside price spikes as 'volatility' (penalizing the score); Sortino isolates only downside drawdowns.",
+    },
+  },
+  {
+    id: "pe-peg",
+    title: "P/E Ratio and PEG Ratio (Valuation)",
+    category: "Fundamentals",
+    simpleExplanation:
+      "P/E tells you how many rupees investors pay for each rupee of yearly profit. PEG goes one step further and asks whether that price is justified by how fast profits are growing.",
+    technicalExplanation:
+      "Trailing P/E = Market Price / Earnings Per Share (last 12 months). Forward P/E uses estimated next-year earnings. PEG = P/E divided by the expected annual EPS growth rate in percent. A PEG near 1.0 suggests price and growth are balanced; well above 1.0 means you are paying a premium for each unit of growth.",
+    formula: "PEG = (P / E) / Annual EPS Growth %",
+    workedExample:
+      "Stock A trades at ₹2,000 with EPS of ₹100 (P/E = 20) and expected earnings growth of 20% per year. PEG = 20 / 20 = 1.0 — fairly priced for its growth. Stock B has P/E 20 but only 10% growth: PEG = 2.0 — expensive per unit of growth.",
+    realNexusExample:
+      "The NEXUS research desk shows live trailing P/E beside revenue and profit growth on every stock page, so you can judge the multiple against growth instead of reading P/E in isolation.",
+    commonMistakes: [
+      "Calling a low P/E stock 'cheap': A P/E of 8 with shrinking earnings is a value trap, not a bargain.",
+      "Comparing P/E across sectors: Banks, IT services, and utilities structurally trade at different multiples.",
+    ],
+    quiz: {
+      question: "Two companies both trade at a P/E of 25. Company X grows earnings at 25% yearly, Company Y at 10%. Which is cheaper on growth-adjusted valuation?",
+      options: [
+        "Company Y, because slower growth is safer",
+        "They are equally cheap since P/E is identical",
+        "Company X — its PEG is 1.0 versus 2.5 for Y",
+        "Neither can be judged without the share price",
+      ],
+      correctIndex: 2,
+      explanation:
+        "PEG = P/E ÷ growth %. X: 25/25 = 1.0. Y: 25/10 = 2.5. X offers each unit of growth at a lower price.",
+    },
+  },
+  {
+    id: "rsi-momentum",
+    title: "RSI Momentum Oscillator (0–100)",
+    category: "Technical Analysis",
+    simpleExplanation:
+      "RSI is a speedometer for price moves, scaled 0 to 100. Above 70 the stock may be overheated (overbought); below 30 it may be washed out (oversold).",
+    technicalExplanation:
+      "RSI-14 compares average gains to average losses over 14 sessions using Wilder's smoothing: RS = avg gain / avg loss, RSI = 100 − 100/(1 + RS). In strong trends RSI can stay overbought/oversold for weeks, so it is a timing aid, never a standalone buy/sell signal.",
+    formula: "RSI = 100 − [ 100 / (1 + RS) ],  RS = Avg Gain₁₄ / Avg Loss₁₄",
+    workedExample:
+      "Over 14 sessions a stock averages ₹12 of gains on up days and ₹6 of losses on down days. RS = 12/6 = 2. RSI = 100 − 100/3 = 66.7 — strong momentum, not yet overheated.",
+    realNexusExample:
+      "NEXUS computes RSI-14 on live candles for the chart sub-pane and the technical confluence engine, flagging OVERBOUGHT above 70 and OVERSOLD below 30.",
+    commonMistakes: [
+      "Shorting mechanically at RSI 70: In a genuine breakout, RSI can pin above 70 for weeks while price keeps climbing.",
+      "Using RSI without trend context: An oversold bounce against a bearish MACD trend often fails.",
+    ],
+    quiz: {
+      question: "A stock's RSI has stayed above 75 for three weeks while the price keeps making new highs. What is the most disciplined read?",
+      options: [
+        "Short immediately — RSI above 70 guarantees a crash",
+        "Momentum is strongly bullish; wait for RSI to roll over or price structure to break before acting",
+        "RSI is broken and should be ignored forever",
+        "Buy double size because the signal is stronger",
+      ],
+      correctIndex: 1,
+      explanation:
+        "Overbought is a condition, not a timing trigger. In strong uptrends RSI stays elevated; entries and exits should wait for confirmation such as RSI crossing back down or support breaking.",
+    },
+  },
+  {
+    id: "macd-trend",
+    title: "MACD Trend Momentum (12, 26, 9)",
+    category: "Technical Analysis",
+    simpleExplanation:
+      "MACD tracks whether short-term momentum is running hotter or colder than long-term momentum. When the fast MACD line crosses above the slow signal line, bulls are taking charge.",
+    technicalExplanation:
+      "MACD line = EMA-12 minus EMA-26 of closing prices. Signal line = 9-period EMA of the MACD line. Histogram = MACD − signal. A bullish crossover (MACD crossing above signal, histogram flipping positive) marks upside acceleration; the mirror marks downside acceleration.",
+    formula: "MACD = EMA₁₂ − EMA₂₆,  Signal = EMA₉(MACD),  Histogram = MACD − Signal",
+    workedExample:
+      "EMA-12 of a stock is ₹1,520 and EMA-26 is ₹1,500, so MACD = +20. The signal line sits at +12, so the histogram reads +8 — positive and expanding, i.e. strengthening upside momentum.",
+    realNexusExample:
+      "The NEXUS chart sub-pane draws the MACD line, signal line, and histogram together; on short timeframes (e.g. 1M ≈ 22 sessions) early bars are EMA warm-up and the header says so.",
+    commonMistakes: [
+      "Trading every crossover: In sideways markets MACD whipsaws across the signal line repeatedly.",
+      "Ignoring the histogram slope: A crossover with a flat histogram carries far less conviction than one with expanding bars.",
+    ],
+    quiz: {
+      question: "MACD crosses above its signal line while the histogram turns positive and expands. What does this indicate?",
+      options: [
+        "Guaranteed profit on a long trade",
+        "Strengthening bullish momentum — upside acceleration",
+        "A bearish reversal is underway",
+        "Volume has dried up completely",
+      ],
+      correctIndex: 1,
+      explanation:
+        "A bullish crossover with an expanding positive histogram means short-term momentum is accelerating faster than the longer baseline — the textbook bullish MACD configuration.",
+    },
+  },
+  {
+    id: "bollinger-bands",
+    title: "Bollinger Bands & Volatility Breakouts",
+    category: "Technical Analysis",
+    simpleExplanation:
+      "Bollinger Bands are two flexible rails drawn two standard deviations above and below the 20-day average price. When the rails squeeze tight, a big move is usually brewing; when price rides a rail, the trend is strong.",
+    technicalExplanation:
+      "Middle = SMA-20. Upper = SMA-20 + 2σ, Lower = SMA-20 − 2σ (σ = 20-day standard deviation). %B = (Price − Lower)/(Upper − Lower) locates price inside the channel; Bandwidth = (Upper − Lower)/Middle × 100 measures the squeeze. Prices can walk a band for extended trends, so touches alone are not reversal signals.",
+    formula: "Upper/Lower = SMA₂₀ ± 2σ₂₀,   %B = (P − Lower)/(Upper − Lower)",
+    workedExample:
+      "SMA-20 is ₹500 with σ = ₹15. Bands sit at ₹530/₹470. Price at ₹525 gives %B = (525−470)/60 = 0.92 — pressing the upper rail in a strong trend, not an automatic sell.",
+    realNexusExample:
+      "NEXUS draws Bollinger overlays on the main chart and reports bandwidth in technicals, so squeezes ahead of earnings or policy events are visible at a glance.",
+    commonMistakes: [
+      "Selling every upper-band touch: In trending phases price walks the band; wait for %B to roll over or support to break.",
+      "Buying a squeeze breakout without volume: Bandwidth squeezes precede moves in either direction — confirmation matters.",
+    ],
+    quiz: {
+      question: "Bandwidth collapses to a multi-month low while price coils near the middle band. What is the correct preparation?",
+      options: [
+        "Do nothing — squeezes mean the market is closed",
+        "Expect a volatility expansion soon and plan entries for either direction with confirmation",
+        "Short immediately because squeezes always break down",
+        "Double leverage since risk has disappeared",
+      ],
+      correctIndex: 1,
+      explanation:
+        "A bandwidth squeeze signals stored energy and an imminent expansion, but direction is unknown — prepare both sides and demand a confirmed breakout with volume.",
+    },
+  },
+  {
+    id: "sip-xirr",
+    title: "SIP, Compounding & XIRR",
+    category: "Funds & ETFs",
+    simpleExplanation:
+      "A SIP converts market volatility into an advantage: fixed monthly investments automatically buy more units when prices dip and fewer when they peak. XIRR is the single annualized return number that fairly summarizes irregular cash flows.",
+    technicalExplanation:
+      "SIP future value compounds each instalment for its remaining tenure. XIRR is the rate r solving NPV = Σ CFᵢ/(1+r)^(dᵢ/365.25) = 0 (NEXUS solves it by bisection on [−0.9999, 10]). Unlike point-to-point returns, XIRR accounts for the timing and size of every investment and withdrawal.",
+    formula: "NPV(r) = Σ CFᵢ / (1+r)^(dᵢ/365.25) = 0  →  r = XIRR",
+    workedExample:
+      "₹10,000 monthly for 12 months (₹1.2L invested) grows to ₹1.29L. A simple 7.5% gain understates timing effects; XIRR annualizes the monthly cash-flow schedule to roughly 14% in this illustration.",
+    realNexusExample:
+      "NEXUS analytics reports XIRR on your paper portfolio's actual transaction ledger, and the Simulators view projects SIP outcomes before you commit real capital.",
+    commonMistakes: [
+      "Quoting absolute returns on SIPs: 40% total gain over 10 years is barely ~3.4% annualized — always annualize with XIRR.",
+      "Stopping SIPs in crashes: Pausing at the bottom abandons the cheapest units, which contribute the most to long-run XIRR.",
+    ],
+    quiz: {
+      question: "Why is XIRR a fairer SIP performance number than total percentage gain?",
+      options: [
+        "XIRR is always a bigger number",
+        "XIRR accounts for when each rupee entered and exited, annualizing irregular cash flows",
+        "Total gain cannot be computed for SIPs",
+        "Regulators ban percentage gains",
+      ],
+      correctIndex: 1,
+      explanation:
+        "A lump sum and a staggered SIP with the same total gain had very different capital at risk over time. XIRR reduces every dated cash flow to one comparable annualized rate.",
+    },
+  },
+  {
+    id: "beta-diversification",
+    title: "Beta, Diversification & Position Sizing",
+    category: "Portfolio Risk",
+    simpleExplanation:
+      "Beta measures how violently your stock dances when the market moves: beta 1.5 means roughly 1.5× the market's swing. Diversification across weakly-correlated assets — plus capping any single position — is what keeps one bad bet from sinking the portfolio.",
+    technicalExplanation:
+      "Beta = Cov(stock, benchmark)/Var(benchmark) over paired daily returns. Portfolio variance falls as imperfectly correlated assets are added (the only free lunch in finance). NEXUS flags single-stock, top-3, and sector concentration (HHI-style) and sizes inverse-volatility weights as wᵢ = (1/σᵢ)/Σ(1/σ).",
+    formula: "β = Cov(R_stock, R_mkt) / Var(R_mkt),   wᵢ = (1/σᵢ) / Σ(1/σ)",
+    workedExample:
+      "Nifty falls 2%. A beta-1.5 stock typically drops ~3%, while a beta-0.6 defensive drops ~1.2%. A portfolio split across three uncorrelated names with volatilities 20/30/50 gets inverse-vol weights ≈ 47%/31%/22%.",
+    realNexusExample:
+      "The NEXUS Portfolio Doctor computes your beta vs NIFTY 50, concentration flags, and stress scenarios (crash, crude shock, rate hike) from your live holdings.",
+    commonMistakes: [
+      "Holding ten stocks from one sector and calling it diversified: Correlated names fall together — diversify across sectors and factors.",
+      "Sizing by conviction instead of volatility: A 40% position in a high-beta name dominates portfolio risk regardless of confidence.",
+    ],
+    quiz: {
+      question: "Your portfolio holds 45% in one high-beta stock and the market drops 3%. What is the core problem?",
+      options: [
+        "Nothing — concentration always outperforms",
+        "Concentration plus high beta means that single name drives most of the loss; trim size or hedge",
+        "Beta only applies to mutual funds",
+        "The other 55% will automatically offset the loss",
+      ],
+      correctIndex: 1,
+      explanation:
+        "Position size × beta determines risk contribution. A 45% high-beta allocation behaves like a leveraged market bet — the fix is smaller size, lower-beta exposure, or an explicit hedge.",
     },
   },
 ];

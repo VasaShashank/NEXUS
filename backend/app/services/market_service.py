@@ -538,14 +538,21 @@ class MarketService:
                 if q:
                     all_quotes.append(q)
 
-        sorted_by_change = sorted(all_quotes, key=lambda x: x.change_1d_pct, reverse=True)
+        # None-safe aggregations: change/volume are optional under the strict
+        # no-fabrication policy, so missing values must not crash the sort.
+        sorted_by_change = sorted(
+            all_quotes,
+            key=lambda x: x.change_1d_pct if x.change_1d_pct is not None else float("-inf"),
+            reverse=True,
+        )
         top_gainers = sorted_by_change[:5]
         top_losers = sorted_by_change[-5:][::-1]
-        most_active = sorted(all_quotes, key=lambda x: x.volume, reverse=True)[:5]
+        most_active = sorted(all_quotes, key=lambda x: x.volume if x.volume is not None else 0.0, reverse=True)[:5]
 
-        advancing = sum(1 for q in all_quotes if q.change_1d > 0)
-        declining = sum(1 for q in all_quotes if q.change_1d < 0)
-        unchanged = sum(1 for q in all_quotes if q.change_1d == 0)
+        with_change = [q for q in all_quotes if q.change_1d is not None]
+        advancing = sum(1 for q in with_change if q.change_1d > 0)
+        declining = sum(1 for q in with_change if q.change_1d < 0)
+        unchanged = sum(1 for q in with_change if q.change_1d == 0)
         ad_ratio = round(advancing / max(1, declining), 2)
 
         regime = "BULLISH" if ad_ratio > 1.2 else ("BEARISH" if ad_ratio < 0.8 else "NEUTRAL")
@@ -553,6 +560,8 @@ class MarketService:
         # Sector performance
         sector_map: Dict[str, List[float]] = {}
         for q in all_quotes:
+            if q.change_1d_pct is None:
+                continue
             s = q.sector or "Other"
             sector_map.setdefault(s, []).append(q.change_1d_pct)
 

@@ -11,8 +11,9 @@ import {
   ChevronRight,
   Sparkles,
   UserRound,
+  LogOut,
 } from "lucide-react";
-import { api, StockQuote } from "@/lib/api";
+import { api, StockQuote, getAuthToken } from "@/lib/api";
 
 interface NavbarProps {
   onSelectStock: (symbol: string) => void;
@@ -31,13 +32,40 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [showDropdown, setShowDropdown] = useState(false);
   const [isDark, setIsDark] = useState(true);
   const [mounted, setMounted] = useState(false);
+  const [authEmail, setAuthEmail] = useState<string | null>(null);
+  const [oauthConfigured, setOauthConfigured] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setMounted(true);
     const isDarkMode = document.documentElement.classList.contains("dark");
     setIsDark(isDarkMode);
+    // Auth state: a stored JWT means a real signed-in user; otherwise the
+    // backend transparently serves the demo account (see deps.py).
+    (async () => {
+      if (getAuthToken()) {
+        try {
+          const me = await api.getCurrentUser();
+          setAuthEmail(me.email);
+        } catch {
+          api.logout();
+          setAuthEmail(null);
+        }
+      } else {
+        try {
+          const status = await api.getOAuthStatus();
+          setOauthConfigured(status.configured);
+        } catch {
+          setOauthConfigured(false);
+        }
+      }
+    })();
   }, []);
+
+  const handleSignOut = () => {
+    api.logout();
+    setAuthEmail(null);
+  };
 
   const toggleTheme = () => {
     if (isDark) {
@@ -214,11 +242,40 @@ export const Navbar: React.FC<NavbarProps> = ({
           {mounted ? (isDark ? <Sun className="w-4.5 h-4.5" /> : <Moon className="w-4.5 h-4.5" />) : <Sun className="w-4.5 h-4.5" />}
         </button>
 
-        {/* User Badge */}
+        {/* User Badge / Sign-in */}
         <div className="flex items-center space-x-2 pl-3 border-l border-white/[0.06]">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-accent-violet/20 to-accent-cyan/10 border border-white/[0.08] flex items-center justify-center text-slate-300">
-            <UserRound className="w-4 h-4" />
-          </div>
+          {authEmail ? (
+            <>
+              <div
+                className="w-8 h-8 rounded-xl bg-gradient-to-br from-accent-violet/20 to-accent-cyan/10 border border-white/[0.08] flex items-center justify-center text-slate-300 font-bold text-xs"
+                title={authEmail}
+              >
+                {authEmail.charAt(0).toUpperCase()}
+              </div>
+              <button
+                onClick={handleSignOut}
+                className="p-2 rounded-xl text-slate-500 hover:text-foreground hover:bg-white/[0.04] transition-all"
+                title={`Sign out (${authEmail})`}
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </>
+          ) : oauthConfigured ? (
+            <a
+              href={api.getGoogleLoginUrl()}
+              className="px-3 py-2 rounded-xl text-[11px] font-semibold bg-white/[0.04] border border-white/[0.08] text-slate-200 hover:border-accent-cyan/40 hover:text-accent-cyan transition-all"
+              title="Sign in with your Google account"
+            >
+              Sign in with Google
+            </a>
+          ) : (
+            <div
+              className="w-8 h-8 rounded-xl bg-gradient-to-br from-accent-violet/20 to-accent-cyan/10 border border-white/[0.08] flex items-center justify-center text-slate-300"
+              title="Demo mode — Google sign-in is not configured on the backend"
+            >
+              <UserRound className="w-4 h-4" />
+            </div>
+          )}
         </div>
       </div>
     </header>

@@ -233,8 +233,15 @@ def test_hindunilvr_quote_and_fundamentals():
     assert fund_resp.status_code == 200
     fund = fund_resp.json()
     assert fund["symbol"] == "HINDUNILVR"
-    assert fund["pe_ratio"] is not None and fund["pe_ratio"] > 0
-    assert fund["roe"] is not None
+    assert fund["data_status"] == "SOURCED_PROVIDER"
+    # Strict no-fabrication contract: metrics are live-only; present values
+    # must be sane, missing ones must be null (never zero-filled estimates).
+    if fund["pe_ratio"] is not None:
+        assert fund["pe_ratio"] > 0
+    if fund["roe"] is not None:
+        assert -100 < fund["roe"] < 1000
+    if fund["debt_to_equity"] is not None:
+        assert fund["debt_to_equity"] >= 0
 
 
 def test_stock_search_dynamic_universe():
@@ -274,8 +281,13 @@ def test_multi_asset_endpoints():
     bond_resp = client.get("/api/v1/assets/bonds")
     assert bond_resp.status_code == 200
     bonds = bond_resp.json()
-    assert len(bonds) > 0
-    assert "coupon_rate" in bonds[0]
+    # Strict no-fabrication contract: an empty list when the live yield anchor
+    # is unreachable (fixtures were removed); any returned bond must be
+    # benchmark-sourced with a disclaimer, never a curated fixture.
+    for bond in bonds:
+        assert bond["bond_type"] == "SOVEREIGN"
+        assert bond["data_status"] == "SOURCED_BENCHMARK_YIELD"
+        assert bond["source_url"]
 
     comm_resp = client.get("/api/v1/assets/commodities")
     assert comm_resp.status_code == 200
@@ -324,6 +336,17 @@ def test_tax_summary_endpoint():
     # Tax rates: STCG 20%, LTCG 12.5% above ₹1.25L exemption
     assert data["stcg_rate_pct"] == 20.0
     assert data["ltcg_rate_pct"] == 12.5
+
+
+def test_oauth_status_unconfigured():
+    """OAuth status must report configuration honestly; login 503s until credentials exist."""
+    resp = client.get("/api/v1/auth/oauth/status")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["provider"] == "google"
+    assert body["configured"] is False
+    login_resp = client.get("/api/v1/auth/oauth/google/login", follow_redirects=False)
+    assert login_resp.status_code == 503
 
 
 def test_sma_backtest_endpoint():

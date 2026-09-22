@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     GROWW_API_SECRET: Optional[str] = None
     GROWW_CONSENT_RECORDED: Optional[str] = None
     
+    # Google OAuth (optional: OAuth login endpoints return 503 until these are set)
+    GOOGLE_OAUTH_CLIENT_ID: Optional[str] = None
+    GOOGLE_OAUTH_CLIENT_SECRET: Optional[str] = None
+    GOOGLE_OAUTH_REDIRECT_URI: Optional[str] = None
+    FRONTEND_URL: str = "http://localhost:3000"
+
     # CORS
     BACKEND_CORS_ORIGINS: List[str] = [
         "http://localhost:3000",

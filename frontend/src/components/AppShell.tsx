@@ -23,7 +23,7 @@ import { TaxView } from "@/components/views/TaxView";
 import { ResearchLabView } from "@/components/views/ResearchLabView";
 import { WatchlistView } from "@/components/views/WatchlistView";
 import { AiTutorView } from "@/components/views/AiTutorView";
-import { api } from "@/lib/api";
+import { api, consumeAuthCallback } from "@/lib/api";
 
 export default function AppShell() {
   const [showLanding, setShowLanding] = useState<boolean>(false);
@@ -44,6 +44,8 @@ export default function AppShell() {
   };
 
   useEffect(() => {
+    // Pick up the JWT handed back by the Google OAuth callback (#auth_token=...).
+    consumeAuthCallback();
     refreshBalance();
   }, []);
 
@@ -112,6 +114,7 @@ export default function AppShell() {
             <PortfolioView
               onSelectStock={handleSelectStock}
               onNavigate={setCurrentView}
+              onTradeSuccess={refreshBalance}
             />
           )}
           {currentView === "analytics" && (

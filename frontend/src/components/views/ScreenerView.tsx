@@ -106,7 +106,20 @@ export const ScreenerView: React.FC<ScreenerViewProps> = ({ onSelectStock }) => 
       setSavedScreens([]);
     }
     runScreen();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Re-run the screen whenever the sort changes so the select/direction
+  // controls take effect immediately (filters still apply via the button).
+  const didMountSortRef = React.useRef(false);
+  useEffect(() => {
+    if (!didMountSortRef.current) {
+      didMountSortRef.current = true;
+      return;
+    }
+    runScreen();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortBy, sortDir]);
 
   const loadSavedScreen = (screen: { name: string; filters: Record<string, any> }) => {
     const filters = screen.filters;

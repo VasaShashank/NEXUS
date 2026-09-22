@@ -24,6 +24,7 @@ export const BondsView: React.FC = () => {
   const [tenorYears, setTenorYears] = useState<number>(5);
   const [ladderResult, setLadderResult] = useState<any | null>(null);
   const [ladderLoading, setLadderLoading] = useState<boolean>(false);
+  const [ladderError, setLadderError] = useState<string | null>(null);
 
   const loadBonds = async () => {
     setLoading(true);
@@ -45,6 +46,7 @@ export const BondsView: React.FC = () => {
 
   const runSimulation = async () => {
     setLadderLoading(true);
+    setLadderError(null);
     try {
       const res = await api.simulateBondLadder({
         total_investment: investmentAmount,
@@ -53,6 +55,8 @@ export const BondsView: React.FC = () => {
       setLadderResult(res);
     } catch (err) {
       console.warn("Ladder simulation failed:", err);
+      setLadderResult(null);
+      setLadderError("Bond ladder unavailable: no verified live bond feed is reachable right now.");
     } finally {
       setLadderLoading(false);
     }
@@ -148,7 +152,7 @@ export const BondsView: React.FC = () => {
                       </span>
                     </td>
                     <td className="py-3 px-4 text-right font-mono font-semibold text-foreground">
-                      ₹{b.market_price.toFixed(2)}
+                      {b.market_price != null ? `₹${b.market_price.toFixed(2)}` : "—"}
                     </td>
                   </tr>
                 ))}
@@ -221,6 +225,11 @@ export const BondsView: React.FC = () => {
         </div>
 
         {/* Simulation Results */}
+        {ladderError && !ladderResult && (
+          <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs">
+            {ladderError}
+          </div>
+        )}
         {ladderResult && (
           <div className="space-y-4 pt-2">
             {/* KPI Cards */}

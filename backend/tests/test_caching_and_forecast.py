@@ -67,13 +67,17 @@ def test_forecast_api_endpoint():
 
 
 def test_amfi_mutual_funds_catalog():
-    """Verify AMFI provider returns enriched funds with valid NAVs."""
+    """Verify AMFI provider returns enriched funds; NAV/returns exist only when the live feed answers."""
     funds = amfi_provider.get_all_funds()
     assert len(funds) >= 4
     for f in funds:
         assert "scheme_name" in f
-        assert "nav" in f
-        assert f["nav"] > 0
+        # Strict no-fabrication contract: no curated NAV/CAGR claims.
+        if "nav" in f:
+            assert f["nav"] > 0
+        for key in ("cagr_1y", "cagr_3y", "cagr_5y"):
+            if key in f and f[key] is not None:
+                assert -100 < f[key] < 1000
 
 
 def test_amfi_mutual_funds_api_endpoint():

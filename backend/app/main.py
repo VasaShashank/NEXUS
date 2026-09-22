@@ -34,6 +34,13 @@ async def lifespan(app: FastAPI):
         if "idempotency_key" not in columns:
             with engine.begin() as connection:
                 connection.execute(text("ALTER TABLE transactions ADD COLUMN idempotency_key VARCHAR"))
+        user_columns = {column["name"] for column in inspect(engine).get_columns("users")}
+        if "oauth_provider" not in user_columns:
+            with engine.begin() as connection:
+                connection.execute(text("ALTER TABLE users ADD COLUMN oauth_provider VARCHAR"))
+        if "oauth_subject" not in user_columns:
+            with engine.begin() as connection:
+                connection.execute(text("ALTER TABLE users ADD COLUMN oauth_subject VARCHAR"))
     from app.database.session import SessionLocal
     from app.models.user import User
     from app.core.security import get_password_hash

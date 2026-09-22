@@ -16,6 +16,10 @@ class User(Base):
     full_name = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
     is_admin = Column(Boolean, default=False)
+
+    # OAuth identity (nullable: email/password users have these unset)
+    oauth_provider = Column(String, nullable=True)
+    oauth_subject = Column(String, nullable=True)
     
     # Virtual paper trading cash balance (₹10,00,000 default)
     virtual_balance = Column(Float, default=1000000.0)
