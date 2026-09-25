@@ -28,6 +28,7 @@ services:
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
     volumes:
       - nexus_db:/data
     restart: unless-stopped
