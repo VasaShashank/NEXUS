@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     # LLM APIs (Optional: Platform works reliably with deterministic fallback if absent)
     OPENAI_API_KEY: Optional[str] = None
     GEMINI_API_KEY: Optional[str] = None
+    GROQ_API_KEY: Optional[str] = None
 
     # Broker read-only adapters (disabled until credentials and consent are configured)
     ZERODHA_API_KEY: Optional[str] = None

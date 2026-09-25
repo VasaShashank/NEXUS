@@ -12,6 +12,8 @@ from app.core.config import settings
 class AIService:
     @staticmethod
     def get_available_provider() -> str:
+        if settings.GROQ_API_KEY and len(settings.GROQ_API_KEY.strip()) > 5:
+            return "groq"
         if settings.OPENAI_API_KEY and len(settings.OPENAI_API_KEY.strip()) > 5:
             return "openai"
         if settings.GEMINI_API_KEY and len(settings.GEMINI_API_KEY.strip()) > 5:
@@ -31,7 +33,9 @@ class AIService:
     ) -> Dict[str, Any]:
         provider = cls.get_available_provider()
 
-        if provider == "openai":
+        if provider == "groq":
+            return cls._call_groq(prompt, system_instruction, max_tokens, temperature)
+        elif provider == "openai":
             return cls._call_openai(prompt, system_instruction, max_tokens, temperature)
         elif provider == "gemini":
             return cls._call_gemini(prompt, system_instruction, max_tokens, temperature)
@@ -43,6 +47,36 @@ class AIService:
             "content": None,
             "status": "FALLBACK"
         }
+
+    @classmethod
+    def _call_groq(cls, prompt: str, system_instruction: str, max_tokens: int, temperature: float) -> Dict[str, Any]:
+        models_to_try = ["openai/gpt-oss-120b", "qwen/qwen3.8-27b", "openai/gpt-oss-20b"]
+        for model in models_to_try:
+            try:
+                headers = {
+                    "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+                    "Content-Type": "application/json"
+                }
+                body = {
+                    "model": model,
+                    "messages": [
+                        {"role": "system", "content": system_instruction},
+                        {"role": "user", "content": prompt}
+                    ],
+                    "max_tokens": max(max_tokens, 300),
+                    "temperature": temperature
+                }
+                with httpx.Client(timeout=15.0) as client:
+                    res = client.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=body)
+                    if res.status_code == 200:
+                        data = res.json()
+                        msg = data["choices"][0]["message"]
+                        content = msg.get("content") or msg.get("reasoning")
+                        if content and len(content.strip()) > 0:
+                            return {"provider": "groq", "model": model, "content": content.strip(), "status": "SUCCESS"}
+            except Exception:
+                continue
+        return {"provider": "groq", "content": None, "status": "ERROR"}
 
     @classmethod
     def _call_openai(cls, prompt: str, system_instruction: str, max_tokens: int, temperature: float) -> Dict[str, Any]:

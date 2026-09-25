@@ -17,6 +17,7 @@ except ImportError:
 
 from app.agents.tools import AVAILABLE_TOOLS
 from app.schemas.agent import AgentRunResponse, ToolCallLog, EvidenceCitation
+from app.services.ai_service import AIService
 
 
 class ResearchState(TypedDict):
@@ -254,8 +255,26 @@ def synthesize_research_node(state: ResearchState) -> Dict[str, Any]:
         "uncertainties": "Live provider data gaps, global energy transition pace, currency fluctuations, and quarterly enterprise spending commitments."
     }
 
+    ai_summary = summary
+    if AIService.get_available_provider() != "deterministic" and any(v is not None for v in (curr_p, pe, roe, de, rsi)):
+        try:
+            ai_prompt = (
+                f"Synthesize an institutional equity research brief for {symbol} ({quote.get('company_name', symbol)}).\n"
+                f"VERIFIED DATA (Do NOT invent numbers outside this context):\n"
+                f"- Price: ₹{curr_p} ({_fmt_pct(change_pct) if curr_p is not None else 'N/A'})\n"
+                f"- P/E: {pe}x, ROE: {roe}%, Debt/Equity: {de}x, Market Cap: ₹{mcap} Cr\n"
+                f"- Technical RSI(14): {rsi}, MACD Trend: {macd_trend}, Signal: {signal}\n"
+                f"- Support: ₹{sr.get('nearest_support')}, Resistance: ₹{sr.get('nearest_resistance')}\n"
+                f"Draft 2 concise, professional paragraphs delivering an executive thesis, valuation perspective, and risk-reward profile."
+            )
+            ai_res = AIService.generate_completion(ai_prompt, max_tokens=600)
+            if ai_res.get("status") == "SUCCESS" and ai_res.get("content"):
+                ai_summary = ai_res["content"].strip()
+        except Exception:
+            pass
+
     return {
-        "executive_summary": summary,
+        "executive_summary": ai_summary,
         "structured_findings": findings,
         "bull_case": bulls,
         "bear_case": bears,
