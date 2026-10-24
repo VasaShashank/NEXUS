@@ -653,6 +653,19 @@ export interface PortfolioDoctorResponse {
   supporting_metrics: Record<string, any>;
 }
 
+export interface AssistantChatMessage {
+  role: "user" | "assistant" | "system";
+  content: string;
+}
+
+export interface AssistantChatResponse {
+  message: AssistantChatMessage;
+  provider?: string;
+  model?: string;
+  latency_ms?: number;
+  context_used?: string[];
+}
+
 export interface JournalResponse {
   id: number;
   user_id: number;
@@ -852,6 +865,29 @@ export const api = {
   getWhyMoved: (symbol: string) => fetchJson<WhyMovedResponse>(`/ai/why-moved/${symbol}`),
   getPortfolioDoctor: () => fetchJson<PortfolioDoctorResponse>("/ai/portfolio-doctor"),
   getAgentRuns: () => fetchJson<any[]>("/ai/runs"),
+  tutorChat: (payload: {
+    message: string;
+    history?: Array<{ role: "user" | "assistant"; content: string }>;
+    level?: "beginner" | "intermediate" | "advanced";
+    topic?: string;
+  }) => fetchJson<{ answer: string; provider?: string; model?: string; sources: Array<{ title?: string; symbol?: string; doc_type?: string; fiscal_year?: string; relevance_score?: number }>; disclaimer: string }>("/ai/tutor/chat", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }),
+  generateTutorLesson: (payload: { topic: string; level?: "beginner" | "intermediate" | "advanced"; learning_goal?: string }) =>
+    fetchJson<{ lesson: Record<string, unknown>; provider?: string; model?: string }>("/ai/tutor/lesson", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  chatWithAiAssistant: (payload: {
+    messages: Array<{ role: "user" | "assistant" | "system"; content: string }>;
+    symbol?: string;
+    include_portfolio?: boolean;
+  }) =>
+    fetchJson<AssistantChatResponse>("/ai/assistant/chat", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
 
   // Journal
   getJournal: () => fetchJson<JournalSummaryResponse>("/journal/entries"),

@@ -12,14 +12,20 @@ import {
   AlertTriangle,
   Lightbulb,
   Lock,
-  ArrowRight
+  ArrowRight,
+  Plus,
+  Wand2,
+  RefreshCw,
+  Trash2,
 } from "lucide-react";
 import { ComplianceDisclaimer } from "@/components/common/ComplianceDisclaimer";
+import { api } from "@/lib/api";
+import { ChatGPTMessageRenderer, FractionRenderer } from "./ChatGPTMessageRenderer";
 
-interface ConceptLesson {
+export interface ConceptLesson {
   id: string;
   title: string;
-  category: "Fundamentals" | "Fixed Income" | "Portfolio Risk" | "Funds & ETFs" | "Technical Analysis";
+  category: "Fundamentals" | "Fixed Income" | "Portfolio Risk" | "Funds & ETFs" | "Technical Analysis" | "AI Generated" | string;
   simpleExplanation: string;
   technicalExplanation: string;
   formula: string;
@@ -342,12 +348,26 @@ export const AiTutorView: React.FC = () => {
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [showAnswerFeedback, setShowAnswerFeedback] = useState<boolean>(false);
   const [completedLessons, setCompletedLessons] = useState<string[]>([]);
+  const [customLessons, setCustomLessons] = useState<ConceptLesson[]>([]);
+  const [aiMessages, setAiMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState("");
 
-  // Persist completed lessons across sessions (curriculum progresses in order).
+  // Dynamic lesson generator state
+  const [showGenerator, setShowGenerator] = useState<boolean>(false);
+  const [customTopicInput, setCustomTopicInput] = useState<string>("");
+  const [customLevel, setCustomLevel] = useState<"beginner" | "intermediate" | "advanced">("intermediate");
+  const [generatingLesson, setGeneratingLesson] = useState<boolean>(false);
+  const [generateError, setGenerateError] = useState<string>("");
+
+  // Persist completed lessons across sessions
   useEffect(() => {
     try {
       const stored = window.localStorage.getItem("nexus-tutor-completed");
       if (stored) setCompletedLessons(JSON.parse(stored));
+      const storedCustom = window.localStorage.getItem("nexus-tutor-custom-lessons");
+      if (storedCustom) setCustomLessons(JSON.parse(storedCustom));
     } catch {
       setCompletedLessons([]);
     }
@@ -357,13 +377,16 @@ export const AiTutorView: React.FC = () => {
     try {
       window.localStorage.setItem("nexus-tutor-completed", JSON.stringify(completedLessons));
     } catch {
-      // Ignore storage failures (private mode, full quota, etc.)
+      // Ignore storage failures
     }
   }, [completedLessons]);
 
-  const currentLesson = LESSONS.find((l) => l.id === selectedLessonId) || LESSONS[0];
+  const allLessons: ConceptLesson[] = [...customLessons, ...LESSONS];
+  const currentLesson = allLessons.find((l) => l.id === selectedLessonId) || allLessons[0];
 
   const isLessonUnlocked = (id: string): boolean => {
+    // Custom AI generated lessons are always unlocked
+    if (id.startsWith("custom-")) return true;
     const index = LESSONS.findIndex((l) => l.id === id);
     if (index <= 0) return true;
     return completedLessons.includes(LESSONS[index - 1].id);
@@ -378,42 +401,338 @@ export const AiTutorView: React.FC = () => {
   };
 
   const handleSwitchLesson = (id: string) => {
-    if (!isLessonUnlocked(id)) return;
     setSelectedLessonId(id);
     setSelectedAnswer(null);
     setShowAnswerFeedback(false);
   };
 
-  const currentIndex = LESSONS.findIndex((l) => l.id === currentLesson.id);
-  const nextLesson = LESSONS[currentIndex + 1];
+  const handleDeleteCustomLesson = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    const updated = customLessons.filter((l) => l.id !== id);
+    setCustomLessons(updated);
+    try {
+      window.localStorage.setItem("nexus-tutor-custom-lessons", JSON.stringify(updated));
+    } catch {}
+    if (selectedLessonId === id) {
+      setSelectedLessonId("roce");
+    }
+  };
+
+  const handleGenerateCustomLesson = async (topicOverride?: string) => {
+    const topic = (topicOverride || customTopicInput).trim();
+    if (!topic || generatingLesson) return;
+    setGeneratingLesson(true);
+    setGenerateError("");
+    try {
+      const res = await api.generateTutorLesson({
+        topic,
+        level: customLevel,
+        learning_goal: `Institutional mastery of ${topic} with plain-English analogies, verified formulas, and worked arithmetic.`,
+      });
+      const data = res.lesson as any;
+      const newLesson: ConceptLesson = {
+        id: `custom-${Date.now()}`,
+        title: data.title || topic,
+        category: "AI Generated",
+        simpleExplanation: data.explanation || `Comprehensive institutional overview of ${topic}.`,
+        technicalExplanation: data.technical_deep_dive || data.explanation || "Detailed quantitative mechanics.",
+        formula: data.formula || (typeof data.worked_example === "string" ? data.worked_example.split("\n")[0] : `${topic} = Mathematical formula detailed below`),
+        workedExample: data.worked_example || "Step-by-step arithmetic illustration.",
+        realNexusExample: Array.isArray(data.learning_objectives) ? data.learning_objectives.join(". ") : `Real-world market practice for ${topic}.`,
+        commonMistakes: Array.isArray(data.common_mistakes) && data.common_mistakes.length > 0 ? data.common_mistakes : ["Misinterpreting leverage risk or denominator assumptions."],
+        quiz: Array.isArray(data.quiz) && data.quiz.length > 0 ? {
+          question: data.quiz[0].question,
+          options: data.quiz[0].options || ["Option A", "Option B", "Option C", "Option D"],
+          correctIndex: data.quiz[0].correct_index ?? 0,
+          explanation: data.quiz[0].explanation || "Verified institutional explanation.",
+        } : {
+          question: `What is the principal investment insight from ${topic}?`,
+          options: [
+            "It isolates true economic return after accounting for capital cost and risk",
+            "It guarantees fixed returns in bull and bear cycles",
+            "It only applies to unlisted private businesses",
+            "It ignores debt obligations completely"
+          ],
+          correctIndex: 0,
+          explanation: `${topic} provides rigorous empirical insight into risk and asset pricing.`
+        }
+      };
+
+      setCustomLessons((prev) => {
+        const updated = [newLesson, ...prev];
+        try {
+          window.localStorage.setItem("nexus-tutor-custom-lessons", JSON.stringify(updated));
+        } catch {}
+        return updated;
+      });
+      setSelectedLessonId(newLesson.id);
+      setSelectedAnswer(null);
+      setShowAnswerFeedback(false);
+      setCustomTopicInput("");
+      setShowGenerator(false);
+    } catch (err: any) {
+      setGenerateError(err?.message || "Failed to generate AI lesson. Make sure you are signed in.");
+    } finally {
+      setGeneratingLesson(false);
+    }
+  };
+
+  const sendTutorMessage = async (overrideMessage?: string) => {
+    const message = (overrideMessage || aiPrompt).trim();
+    if (!message || aiBusy) return;
+    const history = aiMessages.slice(-12);
+    setAiMessages((prev) => [...prev, { role: "user", content: message }]);
+    setAiPrompt("");
+    setAiBusy(true);
+    setAiError("");
+    try {
+      const response = await api.tutorChat({
+        message,
+        history,
+        level: customLevel,
+        topic: currentLesson.title,
+      });
+      setAiMessages((prev) => [...prev, { role: "assistant", content: response.answer }]);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "Unable to reach the AI tutor.";
+      setAiError(detail);
+    } finally {
+      setAiBusy(false);
+    }
+  };
+
+  const handleFormSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    sendTutorMessage();
+  };
+
+  const currentIndex = allLessons.findIndex((l) => l.id === currentLesson.id);
+  const nextLesson = allLessons[currentIndex + 1];
   const answeredCorrectly = showAnswerFeedback && selectedAnswer === currentLesson.quiz.correctIndex;
   const progressPct = Math.round((completedLessons.length / LESSONS.length) * 100);
+
+  const POPULAR_TOPICS = [
+    "Options Greeks (Delta, Gamma, Theta)",
+    "Black-Scholes Options Pricing Model",
+    "Discounted Cash Flow (DCF) Valuation",
+    "Value at Risk (VaR) & Expected Shortfall",
+    "Beta & Capital Asset Pricing (CAPM)",
+    "DuPont 3-Step ROE Decomposition",
+    "Altman Z-Score Credit Distress Model",
+    "WACC & Cost of Capital",
+  ];
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       {/* Header */}
-      <div>
-        <div className="flex items-center space-x-2.5">
-          <GraduationCap className="w-5 h-5 text-accent-cyan" />
-          <h1 className="text-xl font-bold font-display text-foreground tracking-tight">
-            AI Financial Tutor Mode
-          </h1>
-          <span className="px-2 py-0.5 text-[11px] rounded-full bg-accent-cyan/10 text-accent-cyan border border-accent-cyan/20">
-            Interactive Pedagogy
-          </span>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <div className="flex items-center space-x-2.5">
+            <GraduationCap className="w-5 h-5 text-accent-cyan" />
+            <h1 className="text-xl font-bold font-display text-foreground tracking-tight">
+              AI Financial Tutor Mode
+            </h1>
+            <span className="px-2 py-0.5 text-[11px] rounded-full bg-accent-cyan/10 text-accent-cyan border border-accent-cyan/20">
+              Model-Backed AI
+            </span>
+          </div>
+          <p className="text-xs text-slate-400 mt-1">
+            Master institutional financial engineering principles with ChatGPT-grade structured explanations, mathematical formula fraction layouts, and dynamic custom AI lesson generation.
+          </p>
         </div>
-        <p className="text-xs text-slate-400 mt-1">
-          Master financial engineering principles with intuitive analogies, mathematical formulas, real NEXUS market data, and checkpoint quizzes.
-        </p>
+
+        {/* Generate Custom Lesson CTA */}
+        <button
+          onClick={() => setShowGenerator(!showGenerator)}
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-accent-cyan to-accent-blue text-slate-950 text-xs font-bold shadow-md hover:opacity-95 transition-all shrink-0"
+        >
+          <Wand2 className="w-3.5 h-3.5" />
+          <span>{showGenerator ? "Hide Generator" : "Generate Any Lesson with AI"}</span>
+        </button>
       </div>
 
+      {/* Dynamic AI Lesson Generator Studio */}
+      {showGenerator && (
+        <section className="rounded-2xl border border-accent-cyan/30 bg-gradient-to-br from-accent-cyan/[0.06] via-black/40 to-accent-violet/[0.04] p-5 space-y-4 shadow-lg animate-in fade-in duration-300">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-accent-cyan" />
+              <h2 className="text-sm font-bold text-foreground">AI Curriculum Designer</h2>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-accent-cyan/20 text-accent-cyan border border-accent-cyan/30">
+                Custom Topic Creator
+              </span>
+            </div>
+            <span className="text-[11px] text-slate-400">Generate full masterclasses with real formulas & quizzes</span>
+          </div>
+
+          <div className="space-y-2.5">
+            <label className="text-xs text-slate-300 font-semibold block">Select a trending institutional finance topic or type your own:</label>
+            <div className="flex flex-wrap gap-1.5">
+              {POPULAR_TOPICS.map((topic) => (
+                <button
+                  key={topic}
+                  onClick={() => {
+                    setCustomTopicInput(topic);
+                    handleGenerateCustomLesson(topic);
+                  }}
+                  disabled={generatingLesson}
+                  className="px-2.5 py-1 rounded-lg text-[11px] bg-white/[0.04] hover:bg-accent-cyan/15 hover:text-accent-cyan border border-white/[0.08] hover:border-accent-cyan/30 text-slate-300 transition-all disabled:opacity-50"
+                >
+                  + {topic}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
+            <input
+              type="text"
+              value={customTopicInput}
+              onChange={(e) => setCustomTopicInput(e.target.value)}
+              placeholder="e.g. Free Cash Flow to Firm (FCFF), Black-Litterman, Yield Curve Inversion..."
+              className="min-w-0 flex-1 rounded-xl bg-black/40 border border-white/10 px-3.5 py-2.5 text-xs text-foreground outline-none focus:border-accent-cyan/50"
+              disabled={generatingLesson}
+            />
+            <div className="flex items-center gap-2">
+              <select
+                value={customLevel}
+                onChange={(e: any) => setCustomLevel(e.target.value)}
+                className="rounded-xl bg-surface-100 border border-white/10 px-3 py-2.5 text-xs text-slate-200 outline-none"
+                disabled={generatingLesson}
+              >
+                <option value="beginner">Beginner</option>
+                <option value="intermediate">Intermediate</option>
+                <option value="advanced">Advanced / CFA</option>
+              </select>
+              <button
+                onClick={() => handleGenerateCustomLesson()}
+                disabled={generatingLesson || !customTopicInput.trim()}
+                className="px-4 py-2.5 rounded-xl bg-accent-cyan text-slate-950 text-xs font-bold disabled:opacity-50 flex items-center gap-1.5 shrink-0 hover:bg-cyan-300 transition-all"
+              >
+                {generatingLesson ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Designing Masterclass...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Generate Lesson</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {generateError && (
+            <div className="text-xs text-rose-300 rounded-lg border border-rose-500/20 bg-rose-500/[0.06] p-2.5">
+              {generateError}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Live ChatGPT-Grade Tutor Chat Feed */}
+      <section className="rounded-2xl border border-accent-cyan/20 bg-accent-cyan/[0.035] p-4 sm:p-5 space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-accent-cyan" /> Ask the AI Tutor
+            </h2>
+            <p className="text-[11px] text-slate-400 mt-1">
+              Ask any quantitative question. Answers format equations with true fraction bars, step-by-step arithmetic, and verified SEC/BSE filing references.
+            </p>
+          </div>
+          <span className="text-[10px] rounded-full px-2.5 py-1 border border-white/10 text-slate-400 bg-white/[0.02]">
+            Powered by Groq LLaMA-3
+          </span>
+        </div>
+
+        {/* Message Feed with ChatGPT-style rendering */}
+        {aiMessages.length > 0 ? (
+          <div className="space-y-3.5 max-h-[460px] overflow-y-auto pr-1">
+            {aiMessages.map((message, index) => (
+              <ChatGPTMessageRenderer
+                key={`${message.role}-${index}`}
+                role={message.role}
+                content={message.content}
+                onFollowUp={(followUpPrompt) => sendTutorMessage(followUpPrompt)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.05] space-y-2">
+            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Suggested Questions for {currentLesson.title}:</span>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => sendTutorMessage(`Explain the mathematical intuition behind ${currentLesson.title} in simple terms with a real Indian stock example.`)}
+                className="px-3 py-1.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.06] text-xs text-slate-300 hover:text-accent-cyan transition-all text-left"
+              >
+                💡 Explain {currentLesson.title} with a Reliance or TCS case study
+              </button>
+              <button
+                onClick={() => sendTutorMessage(`Break down the formula for ${currentLesson.title} step-by-step with real hypothetical numbers.`)}
+                className="px-3 py-1.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.06] text-xs text-slate-300 hover:text-accent-cyan transition-all text-left"
+              >
+                🔢 Step-by-step arithmetic calculation
+              </button>
+              <button
+                onClick={() => sendTutorMessage(`What are the most dangerous traps investors fall into when analyzing ${currentLesson.title}?`)}
+                className="px-3 py-1.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.06] text-xs text-slate-300 hover:text-accent-cyan transition-all text-left"
+              >
+                ⚠️ Traps & value misconceptions to avoid
+              </button>
+            </div>
+          </div>
+        )}
+
+        {aiError && (
+          <div role="alert" className="text-xs text-rose-300 rounded-lg border border-rose-500/20 bg-rose-500/[0.06] p-3">
+            {aiError}. Check that you&apos;re signed in and an AI provider key is configured on the backend.
+          </div>
+        )}
+
+        <form onSubmit={handleFormSubmit} className="flex flex-col sm:flex-row gap-2">
+          <input
+            value={aiPrompt}
+            onChange={(event) => setAiPrompt(event.target.value)}
+            maxLength={4000}
+            placeholder={`Ask anything about ${currentLesson.title} or general finance...`}
+            className="min-w-0 flex-1 rounded-xl bg-black/30 border border-white/10 px-3.5 py-3 text-xs text-foreground outline-none focus:border-accent-cyan/50 shadow-inner"
+          />
+          <button
+            type="submit"
+            disabled={aiBusy || !aiPrompt.trim()}
+            className="rounded-xl px-5 py-3 bg-accent-cyan text-slate-950 text-xs font-bold disabled:opacity-50 hover:bg-cyan-300 transition-all shrink-0 flex items-center justify-center gap-1.5"
+          >
+            {aiBusy ? (
+              <>
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                <span>Thinking...</span>
+              </>
+            ) : (
+              <span>Ask Tutor</span>
+            )}
+          </button>
+        </form>
+      </section>
+
+      {/* Main Grid: Curriculum Navigation + Active Masterclass Detail */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Left Lesson Navigation */}
-        <div className="space-y-2">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block px-1">
-            Curated Curriculum
-          </span>
-          <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.05] mb-3">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">
+              Curriculum ({allLessons.length})
+            </span>
+            {customLessons.length > 0 && (
+              <span className="text-[10px] text-accent-cyan font-semibold">
+                {customLessons.length} Custom AI
+              </span>
+            )}
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/[0.05]">
             <div className="flex items-center justify-between text-[11px] text-slate-400 mb-1.5">
               <span className="font-semibold">Course Progress</span>
               <span className="text-accent-cyan font-bold tabular-nums">{progressPct}%</span>
@@ -425,20 +744,24 @@ export const AiTutorView: React.FC = () => {
               />
             </div>
             <p className="text-[10px] text-slate-500 mt-1.5">
-              Pass the checkpoint quiz of a concept to unlock the next one.
+              Pass the checkpoint quiz to master each concept.
             </p>
           </div>
-          <div className="space-y-1.5">
-            {LESSONS.map((lesson) => {
+
+          <div className="space-y-1.5 max-h-[600px] overflow-y-auto pr-1">
+            {allLessons.map((lesson) => {
+              const isCustom = lesson.id.startsWith("custom-");
               const unlocked = isLessonUnlocked(lesson.id);
               const done = completedLessons.includes(lesson.id);
+              const isSelected = currentLesson.id === lesson.id;
+
               return (
                 <button
                   key={lesson.id}
                   onClick={() => handleSwitchLesson(lesson.id)}
                   disabled={!unlocked}
-                  className={`w-full text-left p-3 rounded-xl border transition-all text-xs flex flex-col space-y-1 ${
-                    currentLesson.id === lesson.id
+                  className={`w-full text-left p-3 rounded-xl border transition-all text-xs flex flex-col space-y-1 relative group ${
+                    isSelected
                       ? "bg-accent-blue/15 border-accent-blue/40 text-foreground font-semibold shadow-sm"
                       : unlocked
                       ? "bg-surface-50 border-border text-slate-400 hover:text-slate-200 hover:border-white/10"
@@ -446,16 +769,27 @@ export const AiTutorView: React.FC = () => {
                   }`}
                 >
                   <span className="flex items-center justify-between w-full">
-                    <span className="text-[10px] text-accent-cyan uppercase font-bold tracking-wider">
-                      {lesson.category}
+                    <span className="text-[10px] text-accent-cyan uppercase font-bold tracking-wider flex items-center gap-1">
+                      {isCustom ? "✨ " : ""}{lesson.category}
                     </span>
-                    {done ? (
-                      <CheckCircle2 className="w-3.5 h-3.5 text-accent-emerald" />
-                    ) : !unlocked ? (
-                      <Lock className="w-3.5 h-3.5 text-slate-600" />
-                    ) : null}
+                    <span className="flex items-center gap-1">
+                      {isCustom && (
+                        <span
+                          onClick={(e) => handleDeleteCustomLesson(e, lesson.id)}
+                          className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:text-rose-400 transition-opacity"
+                          title="Delete custom lesson"
+                        >
+                          <Trash2 className="w-3 h-3 text-slate-500 hover:text-rose-400" />
+                        </span>
+                      )}
+                      {done ? (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-accent-emerald" />
+                      ) : !unlocked ? (
+                        <Lock className="w-3.5 h-3.5 text-slate-600" />
+                      ) : null}
+                    </span>
                   </span>
-                  <span className="text-xs">{lesson.title}</span>
+                  <span className="text-xs line-clamp-1">{lesson.title}</span>
                 </button>
               );
             })}
@@ -467,9 +801,18 @@ export const AiTutorView: React.FC = () => {
           <div className="p-6 rounded-2xl bg-surface-50 border border-border space-y-5">
             {/* Title & Simple Explanation */}
             <div>
-              <span className="text-xs text-accent-cyan font-semibold uppercase tracking-wider">
-                {currentLesson.category} · Fundamental Concept
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-accent-cyan font-semibold uppercase tracking-wider">
+                  {currentLesson.category} · Quantitative Curriculum
+                </span>
+                <button
+                  onClick={() => sendTutorMessage(`Can you explain ${currentLesson.title} in deep detail with real Indian market examples and edge cases?`)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-accent-cyan/10 hover:bg-accent-cyan/20 border border-accent-cyan/30 text-accent-cyan text-[11px] font-semibold transition-all"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  <span>Ask AI About This</span>
+                </button>
+              </div>
               <h2 className="text-xl font-bold text-foreground mt-1">{currentLesson.title}</h2>
               <div className="p-4 rounded-xl bg-accent-blue/5 border border-accent-blue/20 mt-3 text-xs text-slate-200 leading-relaxed flex items-start space-x-3">
                 <Lightbulb className="w-4 h-4 text-accent-cyan shrink-0 mt-0.5" />
@@ -480,7 +823,7 @@ export const AiTutorView: React.FC = () => {
               </div>
             </div>
 
-            {/* Technical Detail & Mathematical Formula */}
+            {/* Technical Detail & Mathematical Formula with Fraction Bar */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.05] space-y-2">
                 <span className="text-xs font-semibold text-foreground flex items-center space-x-1.5">
@@ -492,18 +835,23 @@ export const AiTutorView: React.FC = () => {
                 </p>
               </div>
 
-              <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.05] space-y-2">
-                <span className="text-xs font-semibold text-foreground flex items-center space-x-1.5">
-                  <Calculator className="w-3.5 h-3.5 text-accent-emerald" />
-                  <span>Mathematical Formula</span>
-                </span>
-                <div className="p-3 rounded-lg bg-black/40 border border-white/[0.06] font-mono text-xs text-accent-cyan font-bold">
-                  {currentLesson.formula}
+              <div className="p-4 rounded-xl bg-gradient-to-br from-white/[0.03] to-white/[0.01] border border-accent-cyan/25 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-foreground flex items-center space-x-1.5">
+                    <Calculator className="w-3.5 h-3.5 text-accent-emerald" />
+                    <span>Mathematical Formula</span>
+                  </span>
+                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-accent-cyan/20 text-accent-cyan font-mono font-bold">
+                    FORMULA
+                  </span>
+                </div>
+                <div className="p-3 rounded-lg bg-black/40 border border-white/[0.06] font-mono text-xs text-accent-cyan font-bold flex items-center justify-center">
+                  <FractionRenderer raw={currentLesson.formula} />
                 </div>
               </div>
             </div>
 
-            {/* Worked Example vs Real NEXUS Case */}
+            {/* Worked Example vs Real Market Illustration */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.05] space-y-1.5">
                 <span className="text-xs font-semibold text-slate-200 block">Worked Step-by-Step Example:</span>
@@ -511,7 +859,7 @@ export const AiTutorView: React.FC = () => {
               </div>
 
               <div className="p-4 rounded-xl bg-accent-emerald/5 border border-accent-emerald/20 space-y-1.5">
-                <span className="text-xs font-semibold text-accent-emerald block">Real NEXUS Data Illustration:</span>
+                <span className="text-xs font-semibold text-accent-emerald block">Applied Market Practice:</span>
                 <p className="text-xs text-slate-300 leading-relaxed">{currentLesson.realNexusExample}</p>
               </div>
             </div>
@@ -603,7 +951,7 @@ export const AiTutorView: React.FC = () => {
               {answeredCorrectly && !nextLesson && (
                 <div className="p-3.5 rounded-xl bg-accent-emerald/10 border border-accent-emerald/25">
                   <p className="text-xs font-semibold text-accent-emerald">
-                    Curriculum complete — every concept is mastered. New lessons will be added over time.
+                    Curriculum complete — all concepts mastered! Use the &ldquo;Generate Any Lesson with AI&rdquo; button above to create unlimited custom financial courses.
                   </p>
                 </div>
               )}
@@ -617,3 +965,4 @@ export const AiTutorView: React.FC = () => {
     </div>
   );
 };
+

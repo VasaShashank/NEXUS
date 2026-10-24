@@ -34,7 +34,7 @@ export const MarketsView: React.FC<MarketsViewProps> = ({ onSelectStock }) => {
             <div key={idx.symbol} className={`p-5 rounded-2xl glass-card animate-float-up animate-float-up-delay-${i + 1}`}>
               <span className="text-[12px] font-semibold text-slate-500 block mb-1.5 tracking-wide">{idx.name}</span>
               <div className="text-[22px] font-display font-extrabold text-foreground tabular-nums tracking-tight">
-                ₹{idx.current_value?.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+                {idx.current_value?.toLocaleString("en-IN", { maximumFractionDigits: 2 })} pts
               </div>
               <div
                 className={`text-[12px] font-bold mt-2.5 tabular-nums flex items-center px-2 py-0.5 rounded-lg w-fit ${
@@ -43,7 +43,7 @@ export const MarketsView: React.FC<MarketsViewProps> = ({ onSelectStock }) => {
               >
                 {isUp ? <ArrowUpRight className="w-3.5 h-3.5 mr-0.5" /> : <ArrowDownRight className="w-3.5 h-3.5 mr-0.5" />}
                 {isUp ? "+" : ""}
-                {idx.change_1d_pct}% ({isUp ? "+" : ""}₹{idx.change_1d})
+                {idx.change_1d_pct}% ({isUp ? "+" : ""}{idx.change_1d} pts)
               </div>
             </div>
           );

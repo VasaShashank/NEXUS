@@ -20,9 +20,9 @@ import { BondsView } from "@/components/views/BondsView";
 import { CommoditiesFxView } from "@/components/views/CommoditiesFxView";
 import { MacroView } from "@/components/views/MacroView";
 import { TaxView } from "@/components/views/TaxView";
-import { ResearchLabView } from "@/components/views/ResearchLabView";
 import { WatchlistView } from "@/components/views/WatchlistView";
 import { AiTutorView } from "@/components/views/AiTutorView";
+import { AiAssistantView } from "@/components/views/AiAssistantView";
 import { api, consumeAuthCallback } from "@/lib/api";
 
 export default function AppShell() {
@@ -134,16 +134,14 @@ export default function AppShell() {
             />
           )}
           {currentView === "ai-assistant" && (
-            <AiStudioView
-              initialQuery={`Analyze why ${selectedSymbol} moved today`}
-              initialSymbol={selectedSymbol}
-              defaultSubTab="whymoved"
+            <AiAssistantView
+              selectedSymbol={selectedSymbol}
+              onSelectStock={handleSelectStock}
             />
           )}
           {currentView === "ai-tutor" && <AiTutorView />}
 
           {/* ── TOOLS ── */}
-          {currentView === "quant-lab" && <ResearchLabView />}
           {currentView === "journal" && (
             <JournalView onSelectStock={handleSelectStock} />
           )}

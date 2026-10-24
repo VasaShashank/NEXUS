@@ -83,7 +83,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onResetPortfolio }) 
           <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.05] flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <ShieldCheck className="w-4 h-4 text-accent-violet" />
-              <span>LangGraph Engine</span>
+              <span>Multi-Tool Agent Pipeline</span>
             </div>
             <span className="text-[10px] font-bold text-accent-cyan bg-accent-cyan/15 px-1.5 py-0.5 rounded">
               READY

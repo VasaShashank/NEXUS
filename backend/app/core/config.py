@@ -10,7 +10,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     PROJECT_NAME: str = "NEXUS Financial Intelligence"
     API_V1_STR: str = "/api/v1"
-    SECRET_KEY: str = "nexus-super-secret-production-key-change-in-env-92837482"
+    SECRET_KEY: str = os.environ.get("SECRET_KEY", "dev-only-change-me")
+    ENVIRONMENT: str = os.environ.get("ENVIRONMENT", "development")
+    ENABLE_DEMO_USER: bool = False
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     
@@ -27,6 +29,15 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Optional[str] = None
     GEMINI_API_KEY: Optional[str] = None
     GROQ_API_KEY: Optional[str] = None
+
+    # Market/news data providers. Credentials stay server-side.
+    MARKET_DATA_PROVIDER: str = "yfinance"  # yfinance | groww | truedata
+    GROWW_ACCESS_TOKEN: Optional[str] = None
+    TRUEDATA_USERNAME: Optional[str] = None
+    TRUEDATA_PASSWORD: Optional[str] = None
+    TRUEDATA_API_KEY: Optional[str] = None
+    NEWSAPI_API_KEY: Optional[str] = None
+    MARKETAUX_API_TOKEN: Optional[str] = None
 
     # Broker read-only adapters (disabled until credentials and consent are configured)
     ZERODHA_API_KEY: Optional[str] = None

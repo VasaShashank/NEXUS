@@ -24,10 +24,14 @@ from app.api.brokers import router as brokers_router
 from app.api.alerts import router as alerts_router
 
 from contextlib import asynccontextmanager
+import os
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: create tables and seed default user
+    # Refuse known unsafe production defaults before accepting traffic.
+    if settings.ENVIRONMENT.lower() == "production" and settings.SECRET_KEY == "dev-only-change-me":
+        raise RuntimeError("Set a unique SECRET_KEY in the production environment.")
+    # Startup: create tables. Demo identity is opt-in and never seeded by default.
     Base.metadata.create_all(bind=engine)
     if settings.DATABASE_URL.startswith("sqlite"):
         columns = {column["name"] for column in inspect(engine).get_columns("transactions")}
@@ -44,22 +48,23 @@ async def lifespan(app: FastAPI):
     from app.database.session import SessionLocal
     from app.models.user import User
     from app.core.security import get_password_hash
-    db = SessionLocal()
-    try:
-        user = db.query(User).filter(User.email == "demo@nexusfin.ai").first()
-        if not user:
-            demo_user = User(
-                email="demo@nexusfin.ai",
-                hashed_password=get_password_hash("NexusDemo123!"),
-                full_name="Institutional Trader",
-                is_active=True,
-                is_admin=True,
-                virtual_balance=1000000.0
-            )
-            db.add(demo_user)
-            db.commit()
-    finally:
-        db.close()
+    if settings.ENABLE_DEMO_USER and settings.ENVIRONMENT.lower() != "production":
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.email == "demo@nexusfin.ai").first()
+            if not user:
+                demo_user = User(
+                    email="demo@nexusfin.ai",
+                    hashed_password=get_password_hash(os.environ.get("NEXUS_DEMO_PASSWORD", "NexusDemo123!")),
+                    full_name="Development Demo",
+                    is_active=True,
+                    is_admin=False,
+                    virtual_balance=1000000.0
+                )
+                db.add(demo_user)
+                db.commit()
+        finally:
+            db.close()
 
     from app.core.preheat import preheat_worker
     from app.services.data_staleness_scheduler import staleness_scheduler
@@ -87,7 +92,7 @@ app = FastAPI(
 # CORS configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.BACKEND_CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

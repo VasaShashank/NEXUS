@@ -116,7 +116,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onSelectStock, onNav
             />
           </div>
           <p className="text-[14px] text-slate-400 mt-1 font-light">
-            Real-time Indian equities intelligence, benchmark movements, and market breadth.
+            Indian equities intelligence, benchmark movements, and market breadth. Data freshness depends on the configured provider.
           </p>
         </div>
         <div className="flex items-center space-x-2">
@@ -234,7 +234,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onSelectStock, onNav
               decisionImpact="Provides the institutional hurdle rate. If your portfolio fails to generate alpha over Nifty 50, reallocate into low-cost index ETFs."
             />
           </div>
-          <span className="text-[12px] text-slate-500 font-mono">Real-time Tick Feeds</span>
+          <span className="text-[12px] text-slate-500 font-mono">Provider Quotes · Check Freshness</span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -264,12 +264,11 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onSelectStock, onNav
                   </span>
                 </div>
                 <div className="text-[26px] font-display font-bold text-foreground tabular-nums tracking-tight flex items-baseline">
-                  <span className="rupee">₹</span>
-                  <span>{idx.current_value?.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</span>
+                  <span>{idx.current_value?.toLocaleString("en-IN", { maximumFractionDigits: 2 })} pts</span>
                 </div>
                 <div className="flex items-center justify-between text-[12px] text-slate-400 mt-3 pt-3 border-t border-white/[0.05] tabular-nums">
-                  <span>Day Low: <span className="rupee">₹</span>{idx.low?.toFixed(1)}</span>
-                  <span>Day High: <span className="rupee">₹</span>{idx.high?.toFixed(1)}</span>
+                  <span>Day Low: {idx.low?.toLocaleString("en-IN", { maximumFractionDigits: 1 })} pts</span>
+                  <span>Day High: {idx.high?.toLocaleString("en-IN", { maximumFractionDigits: 1 })} pts</span>
                 </div>
               </div>
             );

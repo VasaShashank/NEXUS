@@ -1109,8 +1109,90 @@ CORPORATE_ACTIONS_DATA: List[Dict[str, Any]] = [
         "record_date": "2026-05-23",
         "details": "Dividend of ₹3.20 per share",
         "impact_summary": "Cash distribution to eligible holders."
+    },
+    {
+        "symbol": "TATAMOTORS",
+        "company_name": "Tata Motors Limited",
+        "action_type": "DEMERGER",
+        "ex_date": "2026-09-12",
+        "record_date": "2026-09-15",
+        "details": "Demerger into two separate listed entities: Commercial Vehicles (CV) and Passenger Vehicles (PV/EV/JLR)",
+        "impact_summary": "Shareholders receive 1 share of PV entity and 1 share of CV entity per share held."
+    },
+    {
+        "symbol": "TATAMOTORS",
+        "company_name": "Tata Motors Limited",
+        "action_type": "DIVIDEND",
+        "ex_date": "2026-06-11",
+        "record_date": "2026-06-12",
+        "details": "Final Dividend of ₹6.00 per Ordinary Share",
+        "impact_summary": "Cash payout of ₹6.00/share to registered demat holders."
+    },
+    {
+        "symbol": "HDFCBANK",
+        "company_name": "HDFC Bank Limited",
+        "action_type": "DIVIDEND",
+        "ex_date": "2026-05-10",
+        "record_date": "2026-05-12",
+        "details": "Dividend of ₹19.50 per equity share of Re 1 each",
+        "impact_summary": "Annual dividend payout credited to bank accounts."
+    },
+    {
+        "symbol": "ICICIBANK",
+        "company_name": "ICICI Bank Limited",
+        "action_type": "DIVIDEND",
+        "ex_date": "2026-07-22",
+        "record_date": "2026-07-24",
+        "details": "Dividend of ₹10.00 per share of face value ₹2 each",
+        "impact_summary": "Annual cash payout credited to shareholders."
+    },
+    {
+        "symbol": "SBIN",
+        "company_name": "State Bank of India",
+        "action_type": "DIVIDEND",
+        "ex_date": "2026-05-28",
+        "record_date": "2026-05-30",
+        "details": "Final Dividend of ₹13.70 per equity share",
+        "impact_summary": "Cash credit to demat-linked bank accounts."
+    },
+    {
+        "symbol": "BHARTIARTL",
+        "company_name": "Bharti Airtel Limited",
+        "action_type": "DIVIDEND",
+        "ex_date": "2026-08-04",
+        "record_date": "2026-08-06",
+        "details": "Dividend of ₹8.00 per fully paid-up equity share",
+        "impact_summary": "Direct cash dividend credit."
+    },
+    {
+        "symbol": "BAJFINANCE",
+        "company_name": "Bajaj Finance Limited",
+        "action_type": "DIVIDEND",
+        "ex_date": "2026-06-25",
+        "record_date": "2026-06-26",
+        "details": "Dividend of ₹36.00 per equity share",
+        "impact_summary": "High-yield cash distribution to eligible holders."
+    },
+    {
+        "symbol": "LT",
+        "company_name": "Larsen & Toubro Limited",
+        "action_type": "DIVIDEND",
+        "ex_date": "2026-07-08",
+        "record_date": "2026-07-10",
+        "details": "Final Dividend of ₹34.00 per share",
+        "impact_summary": "Annual cash distribution."
+    },
+    {
+        "symbol": "MARUTI",
+        "company_name": "Maruti Suzuki India Limited",
+        "action_type": "DIVIDEND",
+        "ex_date": "2026-08-02",
+        "record_date": "2026-08-04",
+        "details": "Final Dividend of ₹125.00 per equity share",
+        "impact_summary": "Record cash dividend payout."
     }
 ]
+
 
 BULK_BLOCK_DEALS_DATA: List[Dict[str, Any]] = [
     {
@@ -1279,6 +1361,8 @@ NEWS_FEED_DATA = [
     }
 ]
 
+MARKET_NEWS_DATA = NEWS_FEED_DATA
+
 FINANCIAL_DOCUMENTS_DATA = [
     {
         "symbol": "HINDUNILVR",
@@ -1315,5 +1399,113 @@ FINANCIAL_DOCUMENTS_DATA = [
             "Total Contract Value (TCV) stood at $42.7 billion with significant renewals in banking and healthcare. Dividend per share "
             "totaled ₹73 for the fiscal year."
         )
+    },
+    {
+        "symbol": "TATAMOTORS",
+        "title": "Tata Motors Limited - Integrated Annual Report & Demerger Filing FY2025",
+        "doc_type": "ANNUAL_REPORT",
+        "fiscal_year": "FY2024-25",
+        "content": (
+            "Tata Motors Consolidated Annual Report FY25: Consolidated revenue reached ₹4,37,928 Crores, an all-time high, driven by "
+            "turnaround across all three automotive businesses (JLR, Commercial Vehicles, and Passenger Vehicles). "
+            "Jaguar Land Rover recorded free cash flow of £2.3 billion, with Range Rover and Defender order books exceeding 130,000 units. "
+            "Domestic Passenger EV market share held dominant at 71%, with cumulative EV deliveries surpassing 150,000 units. "
+            "The Board unanimously approved the scheme of arrangement for demerging the company into two distinct listed entities: "
+            "(1) Commercial Vehicles business housing heavy trucks, buses, and small commercial vehicles, and (2) Passenger Vehicles "
+            "business housing domestic passenger cars, electric vehicles, and Jaguar Land Rover. Total debt reduction resulted in auto net cash positive."
+        )
+    },
+    {
+        "symbol": "HDFCBANK",
+        "title": "HDFC Bank Limited - Integrated Annual Report & Pillar 3 Disclosures FY2025",
+        "doc_type": "ANNUAL_REPORT",
+        "fiscal_year": "FY2024-25",
+        "content": (
+            "HDFC Bank Annual Report FY25: Post-merger integration completed ahead of management guidance. Total balance sheet crossed ₹36.1 lakh Crores. "
+            "Advances grew 16.8% YoY to ₹25.08 lakh Crores, while total deposits expanded to ₹23.8 lakh Crores, led by retail CASA accretion. "
+            "Net Interest Margin (NIM) stabilized at 3.63% amidst rising cost of funds. Gross NPA stood pristine at 1.24% with Net NPA at 0.33%. "
+            "Capital Adequacy Ratio (CAR) under Basel III stood robust at 18.8% against regulatory minimum of 11.5%. Branch count expanded to 8,750."
+        )
+    },
+    {
+        "symbol": "INFY",
+        "title": "Infosys Limited - Form 20-F & Annual Report FY2025",
+        "doc_type": "ANNUAL_REPORT",
+        "fiscal_year": "FY2024-25",
+        "content": (
+            "Infosys Annual Report FY25: Reported revenues of $18.56 billion with operating margin of 20.7%. Free cash flow generation reached $2.88 billion. "
+            "Large deal Total Contract Value (TCV) was $17.7 billion, with 52% being net new deals. The Topaz GenAI suite engaged in over 300 client "
+            "deployments across enterprise automation and code translation. Attrition dropped to historical low of 12.6%. Liquid cash and investments "
+            "amounted to $4.1 billion with zero debt."
+        )
+    },
+    {
+        "symbol": "ICICIBANK",
+        "title": "ICICI Bank Limited - Annual Report & Governance Disclosures FY2025",
+        "doc_type": "ANNUAL_REPORT",
+        "fiscal_year": "FY2024-25",
+        "content": (
+            "ICICI Bank Report FY25: Core operating profit grew 18.3% YoY to ₹58,122 Crores. Return on Assets (RoA) expanded to 2.36% and Return on Equity "
+            "(RoE) reached 18.9%. Net NPA ratio declined to 0.42% with provision coverage ratio (PCR) at 83.4%. Domestic loan portfolio grew 16.2% driven "
+            "by business banking and secured retail mortgages. Digital app iMobile Pay processed over ₹8.5 lakh Crores in transaction value."
+        )
+    },
+    {
+        "symbol": "SBIN",
+        "title": "State Bank of India - Annual Financial Review FY2025",
+        "doc_type": "ANNUAL_REPORT",
+        "fiscal_year": "FY2024-25",
+        "content": (
+            "State Bank of India Annual Report FY25: Net profit crossed ₹61,077 Crores, making SBI the most profitable corporate in India. "
+            "Gross loan advances crossed ₹37.6 lakh Crores with retail personal loans growing 15.2%. Gross NPA ratio improved to 2.24% and Net NPA to 0.57%. "
+            "CASA ratio maintained at 41.1%. Digital channel YONO crossed 75 million registered users with over 64% of retail asset accounts opened digitally."
+        )
+    },
+    {
+        "symbol": "ITC",
+        "title": "ITC Limited - Report and Accounts & Demerger Scheme FY2025",
+        "doc_type": "ANNUAL_REPORT",
+        "fiscal_year": "FY2024-25",
+        "content": (
+            "ITC Limited Annual Report FY25: Gross revenue crossed ₹70,250 Crores with non-cigarette FMCG segment revenue reaching ₹20,980 Crores. "
+            "EBITDA margin in FMCG-Others expanded by 110 bps. Demerger scheme for ITC Hotels Limited received statutory approvals from SEBI, CCI, and "
+            "shareholders, paving the way for listing ITC Hotels with 40% retained equity and 60% directly held by ITC shareholders. Agri-business "
+            "e-Choupal network expanded value-added spices and organic exports."
+        )
+    },
+    {
+        "symbol": "BHARTIARTL",
+        "title": "Bharti Airtel Limited - Integrated Report & 5G Rollout Filings FY2025",
+        "doc_type": "ANNUAL_REPORT",
+        "fiscal_year": "FY2024-25",
+        "content": (
+            "Bharti Airtel Annual Report FY25: Consolidated revenue reached ₹1,49,982 Crores with EBITDA of ₹79,046 Crores (52.7% margin). "
+            "India Mobile ARPU expanded to ₹209 per month. 5G network coverage reached 90% of urban India with over 72 million active 5G customers. "
+            "Airtel Business enterprise B2B division grew double digits through cloud connectivity, CPaaS, and cyber security solutions. Homes broadband "
+            "customers grew to 7.9 million."
+        )
+    },
+    {
+        "symbol": "LT",
+        "title": "Larsen & Toubro Limited - 79th Annual Report & Infrastructure Order Book FY2025",
+        "doc_type": "ANNUAL_REPORT",
+        "fiscal_year": "FY2024-25",
+        "content": (
+            "L&T Annual Report FY25: Consolidated order inflow for the year stood at ₹3,02,812 Crores. Consolidated order book reached a record ₹4,75,809 Crores "
+            "with international orders constituting 38%. Consolidated revenue crossed ₹2,21,113 Crores. Heavy civil infrastructure, defense engineering, "
+            "and renewables drove execution. The company commissioned the Green Hydrogen electrolyzer manufacturing plant in Hazira under the Lakshya 2026 strategic plan."
+        )
+    },
+    {
+        "symbol": "BAJFINANCE",
+        "title": "Bajaj Finance Limited - Integrated Annual Report & Omni-Channel Audit FY2025",
+        "doc_type": "ANNUAL_REPORT",
+        "fiscal_year": "FY2024-25",
+        "content": (
+            "Bajaj Finance Annual Report FY25: Assets Under Management (AUM) grew 34% YoY to ₹3,30,615 Crores. Total customer franchise expanded to 83.6 million. "
+            "Omni-channel app downloads crossed 52 million active users. Net Interest Income grew 29% to ₹30,850 Crores. Gross NPA and Net NPA stood at "
+            "0.85% and 0.37% respectively, reflecting best-in-class risk underwriting. Capital adequacy stood at 22.52%."
+        )
     }
 ]
+

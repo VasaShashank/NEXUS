@@ -93,7 +93,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onEnterApp }) => {
             </div>
             <h3 className="text-base font-bold text-foreground mb-2">Agentic AI & RAG</h3>
             <p className="text-xs text-slate-400 leading-relaxed">
-              LangGraph-orchestrated research agent with controlled tool calling, corporate filing RAG, and an evidence-grounded &quot;Why Did It Move?&quot; diagnostic engine.
+              Autonomous multi-tool research agent with controlled tool calling, corporate filing RAG, and an evidence-grounded &quot;Why Did It Move?&quot; diagnostic engine.
             </p>
           </div>
 
@@ -118,7 +118,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onEnterApp }) => {
             <span>Next.js 14 App Router</span>
             <span>FastAPI & SQLAlchemy</span>
             <span>TradingView Lightweight</span>
-            <span>LangGraph Agentic</span>
+            <span>Agentic Multi-Tool</span>
           </div>
         </div>
       </main>

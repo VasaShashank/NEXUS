@@ -31,21 +31,34 @@ class AIService:
         max_tokens: int = 800,
         temperature: float = 0.2
     ) -> Dict[str, Any]:
-        provider = cls.get_available_provider()
+        # Try every configured provider in priority order. A configured provider
+        # failing should not prevent a healthy secondary provider from answering.
+        candidates = []
+        if settings.GROQ_API_KEY and len(settings.GROQ_API_KEY.strip()) > 5:
+            candidates.append(("groq", cls._call_groq))
+        if settings.OPENAI_API_KEY and len(settings.OPENAI_API_KEY.strip()) > 5:
+            candidates.append(("openai", cls._call_openai))
+        if settings.GEMINI_API_KEY and len(settings.GEMINI_API_KEY.strip()) > 5:
+            candidates.append(("gemini", cls._call_gemini))
+        if os.environ.get("OLLAMA_BASE_URL"):
+            candidates.append(("ollama", cls._call_ollama))
 
-        if provider == "groq":
-            return cls._call_groq(prompt, system_instruction, max_tokens, temperature)
-        elif provider == "openai":
-            return cls._call_openai(prompt, system_instruction, max_tokens, temperature)
-        elif provider == "gemini":
-            return cls._call_gemini(prompt, system_instruction, max_tokens, temperature)
-        elif provider == "ollama":
-            return cls._call_ollama(prompt, system_instruction, max_tokens, temperature)
+        failures = []
+        for name, call in candidates:
+            try:
+                result = call(prompt, system_instruction, max_tokens, temperature)
+                if result.get("status") == "SUCCESS" and result.get("content"):
+                    result["fallback_chain_attempted"] = failures
+                    return result
+                failures.append(name)
+            except Exception:
+                failures.append(name)
 
         return {
-            "provider": "deterministic",
+            "provider": "none" if not candidates else "unavailable",
             "content": None,
-            "status": "FALLBACK"
+            "status": "FALLBACK" if not candidates else "ERROR",
+            "fallback_chain_attempted": failures,
         }
 
     @classmethod

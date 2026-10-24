@@ -21,7 +21,6 @@ import {
   BarChart3,
   Receipt,
   Star,
-  FlaskConical,
   GraduationCap,
   BarChart2,
 } from "lucide-react";
@@ -193,23 +192,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate }) => 
       label: "INTELLIGENCE",
       items: [
         {
+          id: "ai-assistant",
+          label: "AI Copilot",
+          icon: Sparkles,
+          badge: "LIVE",
+          technicalDescription:
+            "Conversational financial reasoning copilot with access to live market quotes, technical confluence, and portfolio ledger awareness.",
+          decisionImpact:
+            "Get instant answers on comparative equity valuations, macroeconomic trends, and personalized portfolio rebalancing strategies.",
+        },
+        {
           id: "ai-research",
           label: "AI Research",
           icon: Brain,
-          badge: "AI",
+          badge: "DOSSIER",
           technicalDescription:
-            "Autonomous multi-agent synthesis running fundamental, technical, and risk audits to produce institutional equity research reports.",
+            "Multi-tool equity research pipeline running fundamental valuation, technical signals, and corporate filing citations.",
           decisionImpact:
             "Identifies hidden balance-sheet red flags, governance concerns, or emerging growth catalysts that traditional screeners often miss.",
-        },
-        {
-          id: "ai-assistant",
-          label: "AI Assistant",
-          icon: Sparkles,
-          technicalDescription:
-            "Context-aware financial reasoning assistant with access to real-time market data, price action drivers, and news analysis.",
-          decisionImpact:
-            "Answers specific tactical questions like 'Why did Tata Motors drop 3% on earnings?' to avoid selling into panic or buying value traps.",
         },
         {
           id: "ai-tutor",
@@ -226,16 +226,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate }) => 
     {
       label: "TOOLS",
       items: [
-        {
-          id: "quant-lab",
-          label: "Quant Lab",
-          icon: FlaskConical,
-          badge: "BETA",
-          technicalDescription:
-            "Walk-forward SMA crossover backtester with In-Sample (70%) / Out-of-Sample (30%) isolation, slippage simulation, and factor profiling.",
-          decisionImpact:
-            "Out-of-sample validation prevents overfitting. A strategy with 35% CAGR in-sample but only 8% out-of-sample is a curve-fitted data illusion, not an edge.",
-        },
         {
           id: "journal",
           label: "Journal",

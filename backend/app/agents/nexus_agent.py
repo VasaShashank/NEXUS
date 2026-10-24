@@ -6,6 +6,7 @@ and factual vs interpretation separation.
 from typing import Dict, Any, List, Optional, TypedDict
 import time
 import uuid
+import json
 
 try:
     from langgraph.graph import StateGraph, END
@@ -52,11 +53,13 @@ def parse_intent_node(state: ResearchState) -> Dict[str, Any]:
         if not symbol:
             symbol = "RELIANCE"
 
-    tools_to_run = ["get_stock_quote", "get_fundamentals", "get_technical_indicators"]
-    if "news" in q or "recent" in q or "catalyst" in q or "investigate" in q or "research" in q:
-        tools_to_run.append("search_news")
-    if "annual" in q or "report" in q or "filing" in q or "management" in q or "rag" in q or "research" in q:
-        tools_to_run.append("search_financial_documents")
+    tools_to_run = [
+        "get_stock_quote",
+        "get_fundamentals",
+        "get_technical_indicators",
+        "search_financial_documents",
+        "search_news"
+    ]
     if "portfolio" in q or "allocation" in q:
         tools_to_run.append("get_portfolio")
         tools_to_run.append("calculate_portfolio_risk")
@@ -157,6 +160,14 @@ def execute_tools_node(state: ResearchState) -> Dict[str, Any]:
                     "reference": doc.get("fiscal_year", "FY26"),
                     "snippet": doc.get("snippet", "")
                 })
+        elif tool_name == "search_news" and isinstance(res, list):
+            for n in res[:2]:
+                citations.append({
+                    "source_type": "NEWS",
+                    "title": f"Market Catalyst: {n.get('source', 'Financial Media')}",
+                    "reference": str(n.get("published_at", ""))[:10] or "Recent Disclosure",
+                    "snippet": f"{n.get('headline', '')}. {n.get('summary', '')}".strip()[:200]
+                })
 
     return {
         "tool_calls": tool_logs,
@@ -255,21 +266,59 @@ def synthesize_research_node(state: ResearchState) -> Dict[str, Any]:
         "uncertainties": "Live provider data gaps, global energy transition pace, currency fluctuations, and quarterly enterprise spending commitments."
     }
 
+    filings = data.get("search_financial_documents", [])
+    filings_txt = "\n".join([f"  * [{f.get('title', 'Annual Report')} ({f.get('fiscal_year', 'FY25')})]: {f.get('snippet', '')[:300]}" for f in filings[:2]]) if filings else "  * No corporate filings retrieved."
+    news_items = data.get("search_news", [])
+    news_txt = "\n".join([f"  * [{n.get('source', 'Media')}]: {n.get('headline', '')}" for n in news_items[:3]]) if news_items else "  * No breaking headlines."
+
     ai_summary = summary
     if AIService.get_available_provider() != "deterministic" and any(v is not None for v in (curr_p, pe, roe, de, rsi)):
         try:
             ai_prompt = (
-                f"Synthesize an institutional equity research brief for {symbol} ({quote.get('company_name', symbol)}).\n"
-                f"VERIFIED DATA (Do NOT invent numbers outside this context):\n"
-                f"- Price: ₹{curr_p} ({_fmt_pct(change_pct) if curr_p is not None else 'N/A'})\n"
-                f"- P/E: {pe}x, ROE: {roe}%, Debt/Equity: {de}x, Market Cap: ₹{mcap} Cr\n"
-                f"- Technical RSI(14): {rsi}, MACD Trend: {macd_trend}, Signal: {signal}\n"
-                f"- Support: ₹{sr.get('nearest_support')}, Resistance: ₹{sr.get('nearest_resistance')}\n"
-                f"Draft 2 concise, professional paragraphs delivering an executive thesis, valuation perspective, and risk-reward profile."
+                f"You are a Senior Equity Research Analyst synthesizing an institutional investment dossier for {symbol} ({quote.get('company_name', symbol)}).\n"
+                f"VERIFIED FINANCIAL & TECHNICAL DATA (Strictly ground your analysis in this data; do not invent numbers):\n"
+                f"- Live Price: ₹{curr_p} ({_fmt_pct(change_pct) if curr_p is not None else 'N/A'})\n"
+                f"- Valuation & Fundamentals: P/E: {pe}x, ROE: {roe}%, Debt/Equity: {de}x, Market Cap: ₹{mcap} Cr\n"
+                f"- Technical Signals: RSI(14): {rsi}, MACD Trend: {macd_trend}, Confluence Signal: {signal}\n"
+                f"- Support & Resistance: Nearest Support: ₹{sr.get('nearest_support')}, Nearest Resistance: ₹{sr.get('nearest_resistance')}\n"
+                f"- Verified Corporate Filings & Annual Report Excerpts (RAG Grounding):\n{filings_txt}\n"
+                f"- Verified News & Catalyst Drivers:\n{news_txt}\n\n"
+                f"Respond ONLY with a valid JSON object matching this exact schema (no markdown formatting, no preamble):\n"
+                f"{{\n"
+                f'  "executive_summary": "Two concise, authoritative paragraphs delivering an executive investment thesis, valuation perspective, and corporate filing context.",\n'
+                f'  "interpretation": "A focused 2-3 sentence analytical interpretation of how fundamentals, filing guidance, and technicals converge.",\n'
+                f'  "bull_case": ["Strong fundamental/filing catalyst 1", "Technical/valuation catalyst 2", "Competitive/sector catalyst 3"],\n'
+                f'  "bear_case": ["Key valuation or margin headwind 1", "Technical or cyclical headwind 2", "Macro/operational risk from filings 3"],\n'
+                f'  "risks_to_monitor": ["Specific support level or price pivot to watch", "Key quarterly earnings/operational metric to monitor"],\n'
+                f'  "uncertainties": "Specific key uncertainties like global commodity prices, regulatory shifts, or demand cycles."\n'
+                f"}}"
             )
-            ai_res = AIService.generate_completion(ai_prompt, max_tokens=600)
+            ai_res = AIService.generate_completion(
+                ai_prompt,
+                system_instruction="You are an institutional Wall Street / Dalal Street equity research analyst. Output strictly valid JSON without code fences or commentary.",
+                max_tokens=900,
+                temperature=0.3
+            )
             if ai_res.get("status") == "SUCCESS" and ai_res.get("content"):
-                ai_summary = ai_res["content"].strip()
+                raw_txt = ai_res["content"].strip()
+                if "```json" in raw_txt:
+                    raw_txt = raw_txt.split("```json")[1].split("```")[0].strip()
+                elif "```" in raw_txt:
+                    raw_txt = raw_txt.split("```")[1].split("```")[0].strip()
+                parsed = json.loads(raw_txt)
+                if isinstance(parsed, dict):
+                    if parsed.get("executive_summary"):
+                        ai_summary = parsed["executive_summary"].strip()
+                    if parsed.get("interpretation"):
+                        findings["interpretation"] = parsed["interpretation"].strip()
+                    if parsed.get("uncertainties"):
+                        findings["uncertainties"] = parsed["uncertainties"].strip()
+                    if isinstance(parsed.get("bull_case"), list) and len(parsed["bull_case"]) > 0:
+                        bulls = [str(b).strip() for b in parsed["bull_case"]]
+                    if isinstance(parsed.get("bear_case"), list) and len(parsed["bear_case"]) > 0:
+                        bears = [str(b).strip() for b in parsed["bear_case"]]
+                    if isinstance(parsed.get("risks_to_monitor"), list) and len(parsed["risks_to_monitor"]) > 0:
+                        risks = [str(r).strip() for r in parsed["risks_to_monitor"]]
         except Exception:
             pass
 

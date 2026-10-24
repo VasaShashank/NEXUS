@@ -747,7 +747,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({
 
         {/* Right: Oscillator Sub-pane Switcher */}
         <div className="flex items-center space-x-1 bg-white/[0.02] p-0.5 rounded-lg border border-white/[0.05]">
-          <span className="text-[11px] text-slate-500 px-1.5 font-medium">Sub-Pane:</span>
+          <span className="text-[11px] text-slate-500 px-1.5 font-medium" title="Oscillators are shown below price because they use a different scale from price.">Indicators:</span>
           {(["none", "rsi", "macd", "stochastic"] as const).map((osc) => (
             <button
               key={osc}
@@ -763,6 +763,10 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({
           ))}
         </div>
       </div>
+      <p className="text-[11px] text-slate-500">
+        Tip: RSI and MACD appear in a separate panel because their values use a different scale than the stock price.
+        They help describe momentum; they are not guaranteed buy/sell signals.
+      </p>
 
       {/* Pattern Ribbon (Clickable Candlestick Formations) */}
       {showPatterns && patterns.length > 0 && (
@@ -800,11 +804,17 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({
       {activeOscillator !== "none" && (
         <div className="pt-2 border-t border-white/[0.05]">
           <div className="flex items-center justify-between text-[11px] text-slate-400 mb-1 px-1">
-            <span className="font-medium text-foreground uppercase tracking-wider">{activeOscillator} (Sub-Pane)</span>
+            <span className="font-medium text-foreground uppercase tracking-wider">{activeOscillator} — separate indicator panel</span>
             <span className="text-slate-500">
-              {activeOscillator === "macd" && chartCandles.length > 0 && chartCandles.length < 27
-                ? `Warming up — ${chartCandles.length} of 27 sessions for a settled MACD`
-                : "Oscillator computed over OHLCV series"}
+              {activeOscillator === "rsi"
+                ? "RSI: momentum from 0–100; above 70 is often called overbought, below 30 oversold."
+                : activeOscillator === "macd"
+                ? (chartCandles.length > 0 && chartCandles.length < 27
+                    ? `Warming up — ${chartCandles.length} of 27 sessions for a settled MACD`
+                    : "MACD: compares two moving averages; signal-line crosses are not guarantees.")
+                : activeOscillator === "stochastic"
+                ? "Stochastic: compares the close with the recent high–low range; commonly 80/20 zones."
+                : "Indicator values are calculated from the displayed OHLCV candles."}
             </span>
           </div>
           <div ref={oscillatorContainerRef} className="w-full relative" />

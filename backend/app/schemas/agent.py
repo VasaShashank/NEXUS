@@ -69,3 +69,22 @@ class PortfolioDoctorResponse(BaseModel):
     primary_risks: List[str]
     suggested_actions: List[str]
     supporting_metrics: Dict[str, Any]
+
+
+class AssistantChatMessage(BaseModel):
+    role: str  # "user" | "assistant" | "system"
+    content: str
+
+
+class AssistantChatRequest(BaseModel):
+    messages: List[AssistantChatMessage]
+    symbol: Optional[str] = None
+    include_portfolio: Optional[bool] = False
+
+
+class AssistantChatResponse(BaseModel):
+    message: AssistantChatMessage
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    latency_ms: Optional[float] = None
+    context_used: Optional[List[str]] = None

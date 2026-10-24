@@ -127,7 +127,7 @@ export const AiStudioView: React.FC<AiStudioViewProps> = ({
             </h1>
           </div>
           <p className="text-[13px] text-slate-500 mt-0.5 font-light">
-            LangGraph multi-step research agent, controlled financial tools, and corporate filing RAG.
+            Multi-tool agentic equity research pipeline, verified valuation metrics, and corporate filing RAG.
           </p>
         </div>
 
