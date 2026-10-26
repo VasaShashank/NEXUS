@@ -338,8 +338,11 @@ def test_tax_summary_endpoint():
     assert data["ltcg_rate_pct"] == 12.5
 
 
-def test_oauth_status_unconfigured():
+def test_oauth_status_unconfigured(monkeypatch):
     """OAuth status must report configuration honestly; login 503s until credentials exist."""
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "GOOGLE_OAUTH_CLIENT_ID", "")
+    monkeypatch.setattr(settings, "GOOGLE_OAUTH_CLIENT_SECRET", "")
     resp = client.get("/api/v1/auth/oauth/status")
     assert resp.status_code == 200
     body = resp.json()
@@ -368,3 +371,17 @@ def test_sma_backtest_endpoint():
         assert "max_drawdown_pct" in in_s
         assert "sharpe_ratio" in in_s
         assert "num_trades" in in_s
+
+
+def test_portfolio_doctor_hybrid_endpoint():
+    """Verify Portfolio Doctor returns health, concentration, and supporting metrics."""
+    resp = client.get("/api/v1/ai/portfolio-doctor")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "overall_health" in data
+    assert data["overall_health"] in ["EXCELLENT", "BALANCED", "VULNERABLE", "CRITICAL"]
+    assert "concentration_summary" in data
+    assert "sector_tilt_summary" in data
+    assert len(data["primary_risks"]) >= 1
+    assert len(data["suggested_actions"]) >= 1
+    assert "diagnosis_engine" in data["supporting_metrics"]

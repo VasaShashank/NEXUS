@@ -106,6 +106,54 @@ def get_sector_data(sector: str) -> Dict[str, Any]:
     return {"sector": sector, "average_change_pct": 0.0, "status": "Stable"}
 
 
+def get_forensic_flags(symbol: str) -> List[Dict[str, Any]]:
+    """Retrieve deterministic accounting forensic findings and earnings-quality checks."""
+    from app.services.forensic_service import forensic_rule_engine
+    db = SessionLocal()
+    try:
+        findings = forensic_rule_engine.evaluate_company(symbol, db)
+        return [{
+            "rule_id": f.rule_id,
+            "title": f.title,
+            "severity": f.severity,
+            "observation": f.observation_summary,
+            "why_it_matters": f.why_it_matters
+        } for f in findings]
+    finally:
+        db.close()
+
+
+def get_guidance_drift(symbol: str) -> List[Dict[str, Any]]:
+    """Retrieve longitudinal management commitments and guidance revisions."""
+    from app.services.guidance_service import guidance_service
+    db = SessionLocal()
+    try:
+        drifts = guidance_service.detect_guidance_drift(symbol, db)
+        return [d.model_dump() for d in drifts]
+    finally:
+        db.close()
+
+
+def get_canonical_financial_facts(symbol: str) -> List[Dict[str, Any]]:
+    """Retrieve verified multi-period balance sheet and P&L facts."""
+    from app.models.document_intelligence import CanonicalFinancialFact
+    db = SessionLocal()
+    try:
+        norm = symbol.upper().split(".")[0]
+        facts = db.query(CanonicalFinancialFact).filter(
+            CanonicalFinancialFact.symbol == norm
+        ).all()
+        return [{
+            "metric_id": f.metric_id,
+            "metric_name": f.metric_name,
+            "fiscal_year": f.fiscal_year,
+            "value": f.value,
+            "unit": f.unit
+        } for f in facts]
+    finally:
+        db.close()
+
+
 # Controlled Registry
 AVAILABLE_TOOLS = {
     "get_stock_quote": get_stock_quote,
@@ -118,4 +166,7 @@ AVAILABLE_TOOLS = {
     "calculate_portfolio_risk": calculate_portfolio_risk,
     "compare_stocks": compare_stocks,
     "get_sector_data": get_sector_data,
+    "get_forensic_flags": get_forensic_flags,
+    "get_guidance_drift": get_guidance_drift,
+    "get_canonical_financial_facts": get_canonical_financial_facts,
 }

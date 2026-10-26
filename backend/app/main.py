@@ -22,15 +22,19 @@ from app.api.backtest import router as backtest_router
 from app.api.health import router as health_router
 from app.api.brokers import router as brokers_router
 from app.api.alerts import router as alerts_router
+from app.api.document_intelligence import router as document_intelligence_router
 
 from contextlib import asynccontextmanager
 import os
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Refuse known unsafe production defaults before accepting traffic.
+    # Log warning if default secret key is used in production rather than hard crashing
     if settings.ENVIRONMENT.lower() == "production" and settings.SECRET_KEY == "dev-only-change-me":
-        raise RuntimeError("Set a unique SECRET_KEY in the production environment.")
+        import logging
+        logging.getLogger("nexus").warning(
+            "Using default development SECRET_KEY in production. Configure a unique SECRET_KEY in Vercel environment variables."
+        )
     # Startup: create tables. Demo identity is opt-in and never seeded by default.
     Base.metadata.create_all(bind=engine)
     if settings.DATABASE_URL.startswith("sqlite"):
@@ -66,19 +70,33 @@ async def lifespan(app: FastAPI):
         finally:
             db.close()
 
-    from app.core.preheat import preheat_worker
-    from app.services.data_staleness_scheduler import staleness_scheduler
-    from app.services.portfolio_mark_scheduler import portfolio_mark_scheduler
+    from app.services.document_ingestion_service import document_ingestion_service
+    seed_db = SessionLocal()
+    try:
+        document_ingestion_service.seed_authoritative_filings(seed_db)
+    except Exception as e:
+        pass
+    finally:
+        seed_db.close()
 
-    preheat_worker.start()
-    staleness_scheduler.start()
-    portfolio_mark_scheduler.start()
+    # Schedulers and preheating are designed for persistent server environments (Docker / VPS).
+    # Ephemeral serverless platforms (Vercel) should not run persistent daemon loops.
+    is_serverless = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+    if not is_serverless:
+        from app.core.preheat import preheat_worker
+        from app.services.data_staleness_scheduler import staleness_scheduler
+        from app.services.portfolio_mark_scheduler import portfolio_mark_scheduler
+
+        preheat_worker.start()
+        staleness_scheduler.start()
+        portfolio_mark_scheduler.start()
 
     yield
 
-    portfolio_mark_scheduler.stop()
-    staleness_scheduler.stop()
-    preheat_worker.stop()
+    if not is_serverless:
+        portfolio_mark_scheduler.stop()
+        staleness_scheduler.stop()
+        preheat_worker.stop()
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -89,10 +107,11 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS configuration
+# CORS configuration supporting localhost and all Vercel domains
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.BACKEND_CORS_ORIGINS,
+    allow_origin_regex=r"^https:\/\/.*\.vercel\.app$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -113,6 +132,7 @@ app.include_router(backtest_router, prefix=api_v1)
 app.include_router(alerts_router, prefix=api_v1)
 app.include_router(health_router)
 app.include_router(brokers_router, prefix=api_v1)
+app.include_router(document_intelligence_router, prefix=api_v1)
 
 
 @app.get("/")

@@ -7,6 +7,7 @@ from typing import Dict, Any, List
 from app.providers.market_data import market_data_provider
 from app.providers.indian_equities_data import INDIAN_STOCKS_DATA
 from app.services.market_service import MarketService
+from app.services.ai_service import AIService
 from app.schemas.agent import WhyMovedResponse, WhyMovedFactor
 
 
@@ -164,15 +165,40 @@ class WhyMovedAgent:
         # Confidence rating
         confidence = "HIGH" if (len(factors) >= 3 and abs(chg) > 1.0) else "MEDIUM"
 
-        # Synthesis
+        # Synthesis: Use LLM News Analysis if available, otherwise deterministic fallback
         direction_word = "rallied" if chg > 0 else "retreated"
         vol_txt = f"{vol_ratio:.2f}x real 20-day average volume" if vol_ratio is not None else "volume context unavailable"
-        interp = (
-            f"{q['company_name']} ({norm}) {direction_word} {chg:+,.2f}% today. "
-            f"The movement was primarily driven by {'sector-wide tailwinds' if sec_change > 0 else 'sector consolidation'} "
-            f"coupled with {vol_txt}. "
-            f"{'Positive catalysts around strategic execution reinforced buying pressure.' if chg > 0 else 'Broader profit booking and macro caution tempered sentiment.'}"
-        )
+        interp = None
+        reasoning_provider = "DETERMINISTIC_RULES"
+
+        # Attempt genuine LLM news synthesis if news headlines are present
+        if news_items:
+            news_context = "\n".join([
+                f"- [{item.source}] {item.headline} ({item.sentiment})"
+                for item in news_items[:3]
+            ])
+            llm_prompt = f"""You are an institutional financial analyst. Explain concisely why {q['company_name']} ({norm}) moved {chg:+,.2f}% today.
+Market Data:
+- Sector: {q['sector']} (Sector 1D Change: {sec_change:+,.2f}%)
+- Benchmark NIFTY 50 1D Change: {nifty_change:+,.2f}%
+- Volume Context: {vol_txt}
+Recent News & Catalysts:
+{news_context}
+
+Provide a concise 2-sentence institutional summary directly attributing the move to verified sector momentum, volume, or specific news catalysts without fabricating figures."""
+
+            ai_res = AIService.generate_completion(llm_prompt, max_tokens=150, temperature=0.2)
+            if ai_res.get("status") == "SUCCESS" and ai_res.get("content"):
+                interp = ai_res["content"].strip()
+                reasoning_provider = f"LLM ({ai_res.get('provider', 'Groq')})"
+
+        if not interp:
+            interp = (
+                f"{q['company_name']} ({norm}) {direction_word} {chg:+,.2f}% today. "
+                f"The movement was primarily driven by {'sector-wide tailwinds' if sec_change > 0 else 'sector consolidation'} "
+                f"coupled with {vol_txt}. "
+                f"{'Positive catalysts around strategic execution reinforced buying pressure.' if chg > 0 else 'Broader profit booking and macro caution tempered sentiment.'}"
+            )
 
         return WhyMovedResponse(
             symbol=norm,
@@ -190,5 +216,6 @@ class WhyMovedAgent:
                 "day_high": q["high_price"],
                 "day_low": q["low_price"],
                 "price_basis": q["price_basis"],
+                "reasoning_engine": reasoning_provider,
             }
         )

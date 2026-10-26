@@ -21,9 +21,28 @@
 
 ## Executive Summary
 
-**NEXUS** bridges the gap between retail trading interfaces and professional institutional intelligence systems like Bloomberg Terminal and FactSet. Purpose-built for Indian capital markets (NSE & BSE), NEXUS integrates high-performance canvas financial charting, a multi-asset research engine, rule-based quantitative backtesting, tax accounting strictly compliant with Indian Budget 2024-25 mandates, grounded Vector RAG over verified corporate filings, and deterministic multi-agent financial reasoning.
+**NEXUS** is an institutional-grade Indian financial intelligence platform designed for deep equity research, accounting forensics, and regulatory disclosure analysis.
 
-NEXUS enforces strict guardrails against LLM hallucination and number fabrication: all financial metrics originate directly from live exchange feeds or vetted balance-sheet disclosures, accompanied by verified source attribution and provenance badges.
+Unlike generic retail stock dashboards that simply wrap Yahoo Finance and call ChatGPT, **NEXUS 2.0** ingests complex Indian corporate filings (BSE/NSE Annual Reports, Ind AS financial statements, and quarterly disclosures), extracts hierarchical multi-period tables into canonical financial facts, executes a deterministic 8-rule accounting forensics engine, tracks longitudinal management guidance drift, and provides transparent multi-stage DCF valuation with reverse-DCF implied growth calculations.
+
+See [docs/ARCHITECTURE_AUDIT.md](docs/ARCHITECTURE_AUDIT.md) for full architectural audit and engineering design.
+
+---
+
+## NEXUS 2.0 Core Differentiators (Engineering & Applied AI)
+
+1. **Layout-Aware Financial Table Extraction & Canonical Fact Normalization**:
+   - Extracts Balance Sheets, P&L, and Cash Flow statements preserving row hierarchies (levels 0-2), periods (FY24, FY23, FY22), consolidation scope (Consolidated vs Standalone), and notes.
+   - Maps raw line items into canonical relational facts (`REVENUE`, `PAT`, `CFO`, `CAPEX`, `NET_DEBT`) with deterministic derivations (`FCF = CFO - Capex`).
+2. **Deterministic Financial Statement Forensics (8-Rule Engine)**:
+   - Evaluates earnings quality without black-box ML: Cash Flow vs Net Profit divergence (`CFO / PAT < 0.70x`), Receivables growing faster than Revenue (`DSO expansion`), Inventory build-up outpacing sales, Debt-to-Interest coverage deterioration (`EBIT / Interest < 2.5x`), Non-core other income reliance, and Free Cash Flow conversion deficits.
+   - Every finding provides: Observed calculation, why it matters, plausible benign explanations, recommended checks, and source citations.
+3. **Longitudinal Management Guidance Drift Engine**:
+   - Compares management commitments across consecutive quarters (Capex, Revenue, Margins, Debt) to classify guidance drift (`CAPEX_NORMALIZED`, `TARGET_INCREASED`, `NEW_CONDITIONALITY`, `TIMELINE_DELAYED`) with exact source quotes.
+4. **Transparent Multi-Stage DCF & Reverse Valuation**:
+   - Zero fabricated price targets. Implements a 5-year cash-flow schedule with Gordon Growth terminal value, a 5x5 WACC sensitivity matrix, and bisection root-finding to calculate market-implied 5-year revenue growth.
+5. **Full Citation-Backed Research Dossier Generation**:
+   - 1-click generation of exportable institutional equity research dossiers in Markdown and PDF with complete source provenance and SHA-256 filing fingerprints.
 
 ---
 

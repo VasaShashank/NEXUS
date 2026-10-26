@@ -29,6 +29,7 @@ import { TradingViewChart } from "../charts/TradingViewChart";
 import { InfoTooltip } from "@/components/common/InfoTooltip";
 
 import { ComplianceDisclaimer } from "@/components/common/ComplianceDisclaimer";
+import { FinancialIntelligenceWorkspace } from "./FinancialIntelligenceWorkspace";
 
 interface ResearchViewProps {
   symbol: string;
@@ -54,8 +55,8 @@ export const ResearchView: React.FC<ResearchViewProps> = ({
   const [bulkDeals, setBulkDeals] = useState<any[]>([]);
   const [insiderTrades, setInsiderTrades] = useState<any[]>([]);
   const [timeframe, setTimeframe] = useState<string>("1M");
-  const [activeTab, setActiveTab] = useState<"technicals" | "fundamentals" | "actions" | "news" | "trade">(
-    "technicals"
+  const [activeTab, setActiveTab] = useState<"intelligence" | "technicals" | "fundamentals" | "actions" | "news" | "trade">(
+    "intelligence"
   );
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -321,6 +322,7 @@ export const ResearchView: React.FC<ResearchViewProps> = ({
       {/* 3. Multi-Tab Navigation */}
       <div className="flex items-center space-x-2 border-b border-white/[0.05] overflow-x-auto">
         {[
+          { id: "intelligence", label: "NEXUS 2.0 Forensics & Filings", icon: Sparkles, desc: "Audited multi-year statements, accounting forensics, guidance drift & DCF" },
           { id: "technicals", label: "Technical Indicators & S/R", icon: Layers, desc: "Support, Resistance, SMA, RSI & MACD momentum" },
           { id: "fundamentals", label: "Fundamental Research", icon: BarChart2, desc: "Audited multiples, margins, and promoter pledge" },
           { id: "actions", label: "Corporate Actions & Filings", icon: FileText, desc: "Dividends, bonus issues, splits, bulk deals & insider trades" },
@@ -348,6 +350,11 @@ export const ResearchView: React.FC<ResearchViewProps> = ({
       </div>
 
       {/* 4. Tab Content */}
+      {/* TAB 0: NEXUS 2.0 FINANCIAL INTELLIGENCE WORKSPACE */}
+      {activeTab === "intelligence" && (
+        <FinancialIntelligenceWorkspace symbol={quote.symbol} />
+      )}
+
       {/* TAB 1: TECHNICAL INDICATORS */}
       {activeTab === "technicals" && technicals && (
         <div className="space-y-6">

@@ -10,3 +10,11 @@ from app.models.agent_log import AgentRun, AgentToolCall
 from app.models.mutual_fund import MutualFundScheme, MutualFundNavObservation
 from app.models.portfolio_observation import PortfolioObservation
 from app.models.provider_observation import ProviderObservation
+from app.models.document_intelligence import (
+    DocumentFiling,
+    ExtractedTable,
+    CanonicalFinancialFact,
+    ForensicFinding,
+    ManagementGuidanceStatement,
+    CorporateDisclosureEvent,
+)

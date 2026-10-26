@@ -4,7 +4,7 @@ Authentication API routes (email/password + optional Google OAuth).
 import secrets
 from datetime import timedelta
 from urllib.parse import urlencode
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.responses import RedirectResponse
 from jose import jwt
 from sqlalchemy.orm import Session
@@ -68,10 +68,40 @@ def _oauth_configured() -> bool:
     return bool(settings.GOOGLE_OAUTH_CLIENT_ID and settings.GOOGLE_OAUTH_CLIENT_SECRET)
 
 
-def _oauth_redirect_uri() -> str:
+def _oauth_redirect_uri(request: Request = None) -> str:
+    """
+    Computes canonical Google OAuth callback URI.
+    In production (e.g. on Vercel), dynamically infers the origin from request headers
+    to guarantee exact match with Google Cloud Console authorized redirect URIs.
+    """
+    if request:
+        host = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc
+        proto = request.headers.get("x-forwarded-proto") or request.url.scheme or "https"
+        if host and "localhost" not in host and "127.0.0.1" not in host:
+            # If deployed (e.g. nexus-delta-lyart.vercel.app), prioritize host's canonical callback
+            configured = settings.GOOGLE_OAUTH_REDIRECT_URI
+            if configured and host in configured and "/api/v1/auth/oauth/google/callback" in configured:
+                return configured
+            return f"{proto}://{host}/api/v1/auth/oauth/google/callback"
+
     if settings.GOOGLE_OAUTH_REDIRECT_URI:
         return settings.GOOGLE_OAUTH_REDIRECT_URI
     return "http://localhost:8000/api/v1/auth/oauth/google/callback"
+
+
+def _frontend_redirect_url(request: Request = None, token: str = "") -> str:
+    """
+    Computes final frontend redirect URL after successful OAuth authorization code exchange.
+    Falls back to current request host if FRONTEND_URL is still pointing to localhost in production.
+    """
+    base_url = settings.FRONTEND_URL
+    if request:
+        host = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc
+        proto = request.headers.get("x-forwarded-proto") or request.url.scheme or "https"
+        if host and "localhost" not in host and "127.0.0.1" not in host:
+            if "localhost" in base_url or "127.0.0.1" in base_url:
+                base_url = f"{proto}://{host}"
+    return f"{base_url.rstrip('/')}#auth_token={token}"
 
 
 @router.get("/oauth/status")
@@ -81,7 +111,7 @@ def oauth_status():
 
 
 @router.get("/oauth/google/login")
-def oauth_google_login():
+def oauth_google_login(request: Request):
     """Start the Google OAuth flow. Returns 503 until OAuth credentials are configured."""
     if not _oauth_configured():
         raise HTTPException(
@@ -92,9 +122,10 @@ def oauth_google_login():
         f"oauth-state:{secrets.token_urlsafe(24)}",
         expires_delta=timedelta(minutes=10),
     )
+    redirect_uri = _oauth_redirect_uri(request)
     params = urlencode({
         "client_id": settings.GOOGLE_OAUTH_CLIENT_ID,
-        "redirect_uri": _oauth_redirect_uri(),
+        "redirect_uri": redirect_uri,
         "response_type": "code",
         "scope": "openid email profile",
         "state": state,
@@ -104,7 +135,7 @@ def oauth_google_login():
 
 
 @router.get("/oauth/google/callback")
-def oauth_google_callback(code: str = "", state: str = "", db: Session = Depends(get_db)):
+def oauth_google_callback(request: Request, code: str = "", state: str = "", db: Session = Depends(get_db)):
     """Exchange the Google authorization code, provision the user, and hand a NEXUS JWT back to the frontend."""
     if not _oauth_configured():
         raise HTTPException(status_code=503, detail="Google OAuth is not configured.")
@@ -117,13 +148,14 @@ def oauth_google_callback(code: str = "", state: str = "", db: Session = Depends
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid or expired OAuth state.")
 
+    redirect_uri = _oauth_redirect_uri(request)
     try:
         with httpx.Client(timeout=10.0) as client:
             token_resp = client.post(GOOGLE_TOKEN_URL, data={
                 "code": code,
                 "client_id": settings.GOOGLE_OAUTH_CLIENT_ID,
                 "client_secret": settings.GOOGLE_OAUTH_CLIENT_SECRET,
-                "redirect_uri": _oauth_redirect_uri(),
+                "redirect_uri": redirect_uri,
                 "grant_type": "authorization_code",
             })
             token_resp.raise_for_status()
@@ -177,4 +209,5 @@ def oauth_google_callback(code: str = "", state: str = "", db: Session = Depends
     token = create_access_token(user.id, expires_delta=access_token_expires)
     # Token travels in the URL fragment (never sent to any server, never logged);
     # the frontend strips it from the address bar immediately after storing it.
-    return RedirectResponse(url=f"{settings.FRONTEND_URL}#auth_token={token}", status_code=302)
+    target_url = _frontend_redirect_url(request, token)
+    return RedirectResponse(url=target_url, status_code=302)

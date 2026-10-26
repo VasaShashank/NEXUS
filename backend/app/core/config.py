@@ -61,6 +61,7 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "http://localhost:8000",
+        "https://nexus-delta-lyart.vercel.app",
     ]
 
     model_config = SettingsConfigDict(case_sensitive=True, env_file=".env", extra="ignore")

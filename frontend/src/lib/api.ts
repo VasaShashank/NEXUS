@@ -904,4 +904,210 @@ export const api = {
       method: "POST",
       body: JSON.stringify(entry),
     }),
+
+  // ── NEXUS 2.0 Document Intelligence & Forensics ──
+  getFilings: (symbol: string) => fetchJson<DocumentFiling[]>(`/intelligence/filings/${symbol}`),
+  getExtractedTables: (symbol: string, statementType?: string, scope: string = "CONSOLIDATED") => {
+    const params = new URLSearchParams({ scope });
+    if (statementType) params.append("statement_type", statementType);
+    return fetchJson<ExtractedTable[]>(`/intelligence/tables/${symbol}?${params.toString()}`);
+  },
+  getCanonicalFacts: (symbol: string, scope: string = "CONSOLIDATED") =>
+    fetchJson<CanonicalFact[]>(`/intelligence/facts/${symbol}?scope=${scope}`),
+  getForensics: (symbol: string) => fetchJson<ForensicFinding[]>(`/intelligence/forensics/${symbol}`),
+  getGuidance: (symbol: string) => fetchJson<GuidanceStatement[]>(`/intelligence/guidance/${symbol}`),
+  getGuidanceDrift: (symbol: string) => fetchJson<GuidanceDriftComparison[]>(`/intelligence/guidance-drift/${symbol}`),
+  getDisclosures: (symbol: string) => fetchJson<CorporateDisclosure[]>(`/intelligence/disclosures/${symbol}`),
+  runDcfValuation: (payload: DCFAssumptionInput) =>
+    fetchJson<DCFValuationResult>("/intelligence/valuation/dcf", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  getReportMarkdown: async (symbol: string): Promise<string> => {
+    const url = `${API_BASE_URL}/intelligence/report/${symbol}/markdown`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("Failed to generate research report");
+    return res.text();
+  },
+  hybridSearch: (query: string, symbol: string) =>
+    fetchJson<any>("/intelligence/search", {
+      method: "POST",
+      body: JSON.stringify({ query, symbol }),
+    }),
 };
+
+export interface DocumentFiling {
+  id: number;
+  symbol: string;
+  company_name: string;
+  title: string;
+  doc_type: string;
+  fiscal_year?: string;
+  reporting_period?: string;
+  source_url?: string;
+  filing_date?: string;
+  file_hash?: string;
+  file_size_bytes: number;
+  page_count: number;
+  ingestion_status: string;
+  extraction_version: string;
+  created_at: string;
+}
+
+export interface ExtractedTableRow {
+  label: string;
+  level: number;
+  values: Record<string, number | null>;
+  note_ref?: string;
+  is_total?: boolean;
+}
+
+export interface ExtractedTable {
+  id: number;
+  filing_id: number;
+  page_number: number;
+  statement_type: string;
+  consolidation_scope: string;
+  reporting_period?: string;
+  currency: string;
+  units: string;
+  headers: string[];
+  rows: ExtractedTableRow[];
+  raw_markdown?: string;
+  extraction_confidence: number;
+}
+
+export interface CanonicalFact {
+  id: number;
+  symbol: string;
+  filing_id?: number;
+  metric_id: string;
+  metric_name: string;
+  period_start?: string;
+  period_end: string;
+  fiscal_year: string;
+  period_type: string;
+  consolidation_scope: string;
+  value: number;
+  unit: string;
+  statement_type: string;
+  source_page?: number;
+  validation_status: string;
+  restatement_note?: string;
+}
+
+export interface ForensicFinding {
+  id: number;
+  symbol: string;
+  rule_id: string;
+  title: string;
+  severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "INFORMATIONAL";
+  confidence: "HIGH" | "MEDIUM" | "LOW";
+  observation_summary: string;
+  metric_breakdown: Record<string, any>;
+  why_it_matters: string;
+  benign_explanations: string[];
+  recommended_checks: string[];
+  citations: Array<{ period?: string; doc?: string; page?: number; metric?: string; value?: number }>;
+  created_at: string;
+}
+
+export interface GuidanceStatement {
+  id: number;
+  symbol: string;
+  filing_id: number;
+  fiscal_period: string;
+  statement_category: string;
+  raw_quote: string;
+  speaker_title?: string;
+  numeric_target?: number;
+  target_unit?: string;
+  target_period?: string;
+  modality: "COMMITTED" | "EXPECTED" | "CONDITIONAL" | "ASPIRATIONAL";
+  extraction_confidence: number;
+  source_page?: number;
+  created_at: string;
+}
+
+export interface GuidanceDriftComparison {
+  category: string;
+  historical_period: string;
+  historical_statement: string;
+  historical_target?: number;
+  historical_modality: string;
+  current_period: string;
+  current_statement: string;
+  current_target?: number;
+  current_modality: string;
+  drift_type: string;
+  explanation: string;
+}
+
+export interface CorporateDisclosure {
+  id: number;
+  symbol: string;
+  event_type: string;
+  event_date: string;
+  entity_name: string;
+  entity_category?: string;
+  action_type?: string;
+  shares_count?: number;
+  percentage_stake?: number;
+  transaction_value_inr?: number;
+  source_exchange: string;
+  source_url?: string;
+  provenance_reference?: string;
+  anomaly_flag: boolean;
+  anomaly_rationale?: string;
+}
+
+export interface DCFAssumptionInput {
+  symbol: string;
+  base_revenue?: number;
+  revenue_growth_y1_5: number;
+  terminal_growth_rate: number;
+  operating_margin: number;
+  effective_tax_rate: number;
+  reinvestment_rate: number;
+  wacc: number;
+  net_debt?: number;
+  diluted_shares?: number;
+}
+
+export interface DCFSensitivityCell {
+  wacc: number;
+  terminal_growth: number;
+  intrinsic_value_per_share: number;
+}
+
+export interface DCFValuationResult {
+  symbol: string;
+  historical_revenue: number;
+  projected_fcf: Array<{
+    year: string;
+    revenue: number;
+    ebit: number;
+    nopat: number;
+    fcf: number;
+    discount_factor: number;
+    present_value: number;
+  }>;
+  present_value_fcf: number;
+  terminal_value: number;
+  present_value_terminal_value: number;
+  enterprise_value: number;
+  net_debt: number;
+  equity_value: number;
+  diluted_shares: number;
+  intrinsic_value_per_share: number;
+  current_market_price: number;
+  margin_of_safety_pct: number;
+  sensitivity_matrix: DCFSensitivityCell[];
+  reverse_valuation: {
+    current_market_price: number;
+    target_enterprise_value: number;
+    implied_5yr_revenue_cagr_pct: number;
+    interpretation: string;
+  };
+  provenance_notes: string[];
+}
